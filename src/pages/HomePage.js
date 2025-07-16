@@ -1,14 +1,16 @@
-import React from "react";
+
+
+import React, { useState } from "react";
 import { Box, Typography, Button, TextField, Grid, Card, CardContent, CardMedia } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import './HomePage.css';
+import LocationDetectionWidget from "./LocationDetectionPage";
 
 const Banner = styled(Box)(({ theme }) => ({
   background: "linear-gradient(90deg, #388e3c 60%, #43a047 100%)",
   color: "#fff",
   padding: theme.spacing(3),
   borderRadius: theme.shape.borderRadius,
-  marginBottom: theme.spacing(2),
   textAlign: "center",
 }));
 
@@ -19,10 +21,16 @@ const featuredProducts = [
 ];
 
 const HomePage = () => {
+  const [area, setArea] = useState("");
   return (
     <Box className="home-root">
       <TextField className="search-bar" label="Search products" variant="outlined" size="small" fullWidth />
-      
+      <LocationDetectionWidget onLocationDetected={setArea} />
+      {area && (
+        <Typography variant="body2" sx={{ color: '#388e3c', fontWeight: 500, mb: 2 }}>
+          Service available in: {area}
+        </Typography>
+      )}
       <Typography variant="h5" className="section-title">Featured Products</Typography>
       <Grid container spacing={2} className="featured-products">
         {featuredProducts.map(product => (

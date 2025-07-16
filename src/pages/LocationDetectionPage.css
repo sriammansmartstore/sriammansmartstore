@@ -22,3 +22,14 @@
   color: #fff;
   font-weight: 600;
 }
+
+/* Widget-specific styles for HomePage integration */
+.location-widget-root {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 16px 0 8px 0;
+}
+.location-widget-root .location-box {
+  margin-bottom: 8px;
+}
