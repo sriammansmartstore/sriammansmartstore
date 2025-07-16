@@ -21,13 +21,8 @@ const featuredProducts = [
 const HomePage = () => {
   return (
     <Box className="home-root">
-      <Banner>
-        <Typography variant="h4" fontWeight={700}>Welcome to Sri Amman Smart Store</Typography>
-        <Typography variant="subtitle1">Shop fresh, organic, and local products delivered to your doorstep!</Typography>
-        <Box mt={2}>
-          <TextField className="search-bar" label="Search products" variant="outlined" size="small" fullWidth />
-        </Box>
-      </Banner>
+      <TextField className="search-bar" label="Search products" variant="outlined" size="small" fullWidth />
+      
       <Typography variant="h5" className="section-title">Featured Products</Typography>
       <Grid container spacing={2} className="featured-products">
         {featuredProducts.map(product => (

@@ -3,6 +3,9 @@ import { Box, Typography, Button } from "@mui/material";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
+import { IconButton } from "@mui/material";
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useNavigate } from "react-router-dom";
 import './PaymentOptionsPage.css';
 
 const paymentOptions = [
@@ -12,9 +15,15 @@ const paymentOptions = [
 ];
 
 const PaymentOptionsPage = () => {
+  const navigate = useNavigate();
   return (
     <Box className="payment-root">
-      <Typography variant="h5" className="payment-title">Select Payment Option</Typography>
+      <Box display="flex" alignItems="center" mb={1}>
+        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h5" className="payment-title" sx={{ flex: 1 }}>Select Payment Option</Typography>
+      </Box>
       <Box className="payment-options">
         {paymentOptions.map(opt => (
           <Box key={opt.id} className="payment-option-card">

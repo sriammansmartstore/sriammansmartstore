@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { auth } from "./firebase";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
@@ -17,24 +17,26 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import PersonIcon from "@mui/icons-material/Person";
 import NotificationsIcon from "@mui/icons-material/Notifications";
-import HomePage from "./pages/HomePage";
-import CategoriesPage from "./pages/CategoriesPage";
-import CartPage from "./pages/CartPage";
-import WishlistPage from "./pages/WishlistPage";
-import AddressesPage from "./pages/AddressesPage";
-import UserSettingsPage from "./pages/UserSettingsPage";
-import SearchPage from "./pages/SearchPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import PaymentOptionsPage from "./pages/PaymentOptionsPage";
-import MyOrdersPage from "./pages/MyOrdersPage";
-import LocationDetectionPage from "./pages/LocationDetectionPage";
-import NotificationsPage from "./pages/NotificationsPage";
-import LoginPage from "./pages/LoginPage";
-import SignupPage from "./pages/SignupPage";
-import MorePage from "./pages/MorePage";
-import AboutUsPage from "./pages/AboutUsPage";
-import ReportProblemPage from "./pages/ReportProblemPage";
-import UserDataPage from "./pages/UserDataPage";
+
+
+const HomePage = lazy(() => import("./pages/HomePage"));
+const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
+const CartPage = lazy(() => import("./pages/CartPage"));
+const WishlistPage = lazy(() => import("./pages/WishlistPage"));
+const AddressesPage = lazy(() => import("./pages/AddressesPage"));
+const UserSettingsPage = lazy(() => import("./pages/UserSettingsPage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const PaymentOptionsPage = lazy(() => import("./pages/PaymentOptionsPage"));
+const MyOrdersPage = lazy(() => import("./pages/MyOrdersPage"));
+const LocationDetectionPage = lazy(() => import("./pages/LocationDetectionPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const SignupPage = lazy(() => import("./pages/SignupPage"));
+const MorePage = lazy(() => import("./pages/MorePage"));
+const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
+const ReportProblemPage = lazy(() => import("./pages/ReportProblemPage"));
+const UserDataPage = lazy(() => import("./pages/UserDataPage"));
 
 const theme = createTheme({
   palette: {
@@ -53,9 +55,10 @@ const theme = createTheme({
   },
 });
 
+
 function App() {
   const [nav, setNav] = useState(0);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(undefined); // undefined = loading, null = not logged in, object = logged in
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -73,8 +76,8 @@ function App() {
             <Typography variant="h6" sx={{ flexGrow: 1, fontFamily: 'Montserrat, Arial, sans-serif', letterSpacing: 0.4, color: '#388e3c', fontWeight: 700 }}>
               Sri Amman Smart Store
             </Typography>
-            {/* Hide Login button if user is logged in */}
-            {!user && (
+            {/* Hide Login button if user is logged in, and don't show until auth state is loaded */}
+            {user === undefined ? null : !user && (
               <Typography component="span" sx={{ fontFamily: 'Montserrat', fontWeight: 600, color: 'red', cursor: 'pointer', ml: 2 }} onClick={() => window.location.href='/login'}>
                 Login
               </Typography>
@@ -82,28 +85,29 @@ function App() {
           </Toolbar>
         </AppBar>
         <div style={{ paddingTop: 64, paddingBottom: 56, minHeight: "100vh", background: '#fff' }}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/categories" element={<CategoriesPage />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/wishlist" element={<WishlistPage />} />
-            <Route path="/more" element={<MorePage />} />
-            <Route path="/addresses" element={<AddressesPage />} />
-            <Route path="/settings" element={<UserSettingsPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/payment" element={<PaymentOptionsPage />} />
-            <Route path="/orders" element={<MyOrdersPage />} />
-            <Route path="/location" element={<LocationDetectionPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/about" element={<AboutUsPage />} />
-            <Route path="/report" element={<ReportProblemPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/userdata" element={<UserDataPage />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/categories" element={<CategoriesPage />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/more" element={<MorePage />} />
+              <Route path="/addresses" element={<AddressesPage />} />
+              <Route path="/settings" element={<UserSettingsPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
+              <Route path="/payment" element={<PaymentOptionsPage />} />
+              <Route path="/orders" element={<MyOrdersPage />} />
+              <Route path="/location" element={<LocationDetectionPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/about" element={<AboutUsPage />} />
+              <Route path="/report" element={<ReportProblemPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/userdata" element={<UserDataPage />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Suspense>
         </div>
         <BottomNavigation
           showLabels

@@ -1,5 +1,8 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
+import { List, ListItem, ListItemText, IconButton } from "@mui/material";
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useNavigate } from "react-router-dom";
 import './NotificationsPage.css';
 
 const notifications = [
@@ -8,15 +11,22 @@ const notifications = [
 ];
 
 const NotificationsPage = () => {
+  const navigate = useNavigate();
   return (
     <Box className="notifications-root">
-      <Typography variant="h5" className="notifications-title">Notifications</Typography>
-      {notifications.map(note => (
-        <Box key={note.id} className="notification-card">
-          <Typography variant="h6">{note.title}</Typography>
-          <Typography variant="body2">{note.message}</Typography>
-        </Box>
-      ))}
+      <Box display="flex" alignItems="center" mb={1}>
+        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h5" className="notifications-title" sx={{ flex: 1 }}>Notifications</Typography>
+      </Box>
+      <List>
+        {notifications.map(note => (
+          <ListItem key={note.id}>
+            <ListItemText primary={note.title} secondary={note.message} />
+          </ListItem>
+        ))}
+      </List>
     </Box>
   );
 };

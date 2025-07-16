@@ -1,5 +1,7 @@
 import React from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, IconButton } from "@mui/material";
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useNavigate } from "react-router-dom";
 import './MyOrdersPage.css';
 
 const orders = [
@@ -8,9 +10,15 @@ const orders = [
 ];
 
 const MyOrdersPage = () => {
+  const navigate = useNavigate();
   return (
     <Box className="orders-root">
-      <Typography variant="h5" className="orders-title">My Orders</Typography>
+      <Box display="flex" alignItems="center" mb={1}>
+        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h5" className="orders-title" sx={{ flex: 1 }}>My Orders</Typography>
+      </Box>
       {orders.map(order => (
         <Box key={order.id} className="order-card">
           <Typography variant="body1">Date: {order.date}</Typography>

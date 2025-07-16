@@ -1,21 +1,50 @@
-import React from "react";
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button } from "@mui/material";
+import React, { useEffect, useState } from "react";
+import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton } from "@mui/material";
+import EditIcon from '@mui/icons-material/Edit';
+import UserDataPage from "./UserDataPage";
 import { useNavigate } from "react-router-dom";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
-const moreLinks = [
+const baseLinks = [
   { label: "Addresses", path: "/addresses" },
-  { label: "User Settings", path: "/settings" },
+  { label: "Change Password", path: "/settings" },
   { label: "My Orders", path: "/orders" },
   { label: "Payment Options", path: "/payment" },
-  { label: "Location Detection", path: "/location" },
   { label: "Notifications", path: "/notifications" },
   { label: "About Us", path: "/about" },
   { label: "Report a Problem", path: "/report" },
 ];
 
+
 const MorePage = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState(undefined); // undefined = loading, null = not logged in, object = logged in
+  const [editOpen, setEditOpen] = useState(false);
+  const [profile, setProfile] = useState({ fullName: '', number: '', countryCode: '+91' });
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setProfile({
+            fullName: data.fullName || '',
+            number: data.number || '',
+            countryCode: data.countryCode || '+91',
+          });
+        } else {
+          setProfile({ fullName: '', number: '', countryCode: '+91' });
+        }
+      } else {
+        setProfile({ fullName: '', number: '', countryCode: '+91' });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -25,6 +54,16 @@ const MorePage = () => {
       alert("Logout failed. Please try again.");
     }
   };
+
+  const handleLogin = () => {
+    navigate("/login");
+  };
+
+  // Hide 'Change Password' if user is Google login
+  let moreLinks = baseLinks;
+  if (user && user.providerData && user.providerData.some(p => p.providerId === 'google.com')) {
+    moreLinks = baseLinks.filter(link => link.label !== 'Change Password');
+  }
 
   return (
     <Box sx={{
@@ -44,7 +83,21 @@ const MorePage = () => {
       overflow: 'hidden',
     }}>
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        <Typography variant="h5" color="primary" fontWeight={700} mb={2}>Account & Settings</Typography>
+        <Box mb={2}>
+          <Box display="flex" alignItems="center">
+            <Typography variant="h5" color="primary" fontWeight={700} flex={1} sx={{ textTransform: 'capitalize' }}>
+              {profile.fullName || 'Your Name'}
+            </Typography>
+            {user && (
+              <IconButton color="primary" onClick={() => setEditOpen(true)} size="small" sx={{ ml: 1 }} title="Edit Profile">
+                <EditIcon />
+              </IconButton>
+            )}
+          </Box>
+          <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mt: 0.5, ml: 0.5 }}>
+            {(profile.number ? `${profile.countryCode} ${profile.number}` : 'Contact Number')}
+          </Typography>
+        </Box>
         <List>
           {moreLinks.map(link => (
             <ListItem key={link.path} disablePadding>
@@ -54,10 +107,29 @@ const MorePage = () => {
             </ListItem>
           ))}
         </List>
+        <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="xs" fullWidth>
+          <UserDataPage editMode={true} onSave={() => setEditOpen(false)} />
+        </Dialog>
       </div>
-      <Button variant="contained" color="error" sx={{ mb: 1, fontWeight: 700 }} onClick={handleLogout}>
-        Logout
-      </Button>
+      {user === undefined ? null : user ? (
+        <Button
+          variant="contained"
+          color="error"
+          sx={{ mb: 1, fontWeight: 700 }}
+          onClick={handleLogout}
+        >
+          Logout
+        </Button>
+      ) : (
+        <Button
+          variant="contained"
+          color="success"
+          sx={{ mb: 1, fontWeight: 700 }}
+          onClick={handleLogin}
+        >
+          Login
+        </Button>
+      )}
     </Box>
   );
 };
