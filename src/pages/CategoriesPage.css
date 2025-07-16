@@ -1,0 +1,27 @@
+.categories-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.category-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(255, 152, 0, 0.10);
+  background: linear-gradient(120deg, #fffde7 0%, #fff 100%);
+  transition: transform 0.2s, box-shadow 0.2s;
+  text-align: center;
+  padding: 24px 0;
+}
+.category-card:hover {
+  transform: scale(1.04);
+  box-shadow: 0 8px 24px rgba(255, 152, 0, 0.18);
+}
+.category-icon {
+  font-size: 48px;
+  color: #388e3c;
+}
+.category-title {
+  margin-top: 12px;
+  font-weight: 600;
+  color: #388e3c;
+}

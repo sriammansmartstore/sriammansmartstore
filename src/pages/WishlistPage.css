@@ -1,0 +1,42 @@
+.wishlist-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.wishlist-title {
+  color: #388e3c;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.wishlist-item {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(56, 142, 60, 0.08);
+  margin-bottom: 12px;
+  padding: 12px;
+}
+.wishlist-item-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-right: 16px;
+}
+.wishlist-item-details {
+  flex: 1;
+}
+.wishlist-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.add-to-cart-btn {
+  background: linear-gradient(90deg, #e91e63 60%, #43a047 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(233, 30, 99, 0.10);
+}

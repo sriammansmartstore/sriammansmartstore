@@ -1,0 +1,34 @@
+
+.home-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.search-bar {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(56, 142, 60, 0.08);
+}
+
+.section-title {
+  margin: 24px 0 12px 0;
+  color: #43a047;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.featured-products {
+  margin-bottom: 32px;
+}
+
+.product-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(67, 160, 71, 0.12);
+  transition: transform 0.2s, box-shadow 0.2s;
+  background: linear-gradient(120deg, #e0f7fa 0%, #fff 100%);
+}
+.product-card:hover {
+  transform: scale(1.04);
+  box-shadow: 0 8px 24px rgba(67, 160, 71, 0.18);
+}
