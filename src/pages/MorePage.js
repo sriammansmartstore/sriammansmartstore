@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton } from "@mui/material";
+import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton, Divider } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
 import UserDataPage from "./UserDataPage";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
@@ -17,7 +18,7 @@ const baseLinks = [
 ];
 
 
-const MorePage = () => {
+const MorePage = ({ onClose }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState(undefined); // undefined = loading, null = not logged in, object = logged in
   const [editOpen, setEditOpen] = useState(false);
@@ -49,6 +50,7 @@ const MorePage = () => {
   const handleLogout = async () => {
     try {
       await auth.signOut();
+      if (onClose) onClose();
       navigate("/login");
     } catch (error) {
       alert("Logout failed. Please try again.");
@@ -56,6 +58,7 @@ const MorePage = () => {
   };
 
   const handleLogin = () => {
+    if (onClose) onClose();
     navigate("/login");
   };
 
@@ -67,68 +70,85 @@ const MorePage = () => {
 
   return (
     <Box sx={{
-      position: 'fixed',
-      top: 64, // height of AppBar
-      left: 0,
-      right: 0,
-      bottom: 56, // height of bottom nav
-      p: 2,
-      background: '#fff',
-      borderRadius: 0,
-      boxShadow: '0 4px 16px rgba(67,160,71,0.08)',
+      height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'space-between',
-      zIndex: 1200,
-      overflow: 'hidden',
+      background: '#fff',
+      minWidth: 320,
+      maxWidth: 400,
+      position: 'relative',
     }}>
-      <div style={{ overflowY: 'auto', flex: 1 }}>
-        <Box mb={2}>
-          <Box display="flex" alignItems="center">
-            <Typography variant="h5" color="primary" fontWeight={700} flex={1} sx={{ textTransform: 'capitalize' }}>
-              {profile.fullName || 'Your Name'}
-            </Typography>
+      {/* Drawer Header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 2, pb: 1 }}>
+        <IconButton onClick={onClose} sx={{ mr: 1 }} size="large" aria-label="Close Drawer">
+          <CloseIcon />
+        </IconButton>
+        <Typography variant="h6" color="primary" fontWeight={700} sx={{ flex: 1, fontFamily: 'Montserrat', letterSpacing: 0.4 }}>
+          More
+        </Typography>
+      </Box>
+      <Divider />
+      {user === undefined ? null : user ? (
+        <>
+          {/* Profile Section */}
+          <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h5" color="primary" fontWeight={700} sx={{ textTransform: 'capitalize', fontFamily: 'Montserrat' }}>
+                {profile.fullName || 'Your Name'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mt: 0.5 }}>
+                {(profile.number ? `${profile.countryCode} ${profile.number}` : 'Contact Number')}
+              </Typography>
+            </Box>
             {user && (
               <IconButton color="primary" onClick={() => setEditOpen(true)} size="small" sx={{ ml: 1 }} title="Edit Profile">
                 <EditIcon />
               </IconButton>
             )}
           </Box>
-          <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mt: 0.5, ml: 0.5 }}>
-            {(profile.number ? `${profile.countryCode} ${profile.number}` : 'Contact Number')}
-          </Typography>
-        </Box>
-        <List>
-          {moreLinks.map(link => (
-            <ListItem key={link.path} disablePadding>
-              <ListItemButton onClick={() => navigate(link.path)}>
-                <ListItemText primary={link.label} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-        <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="xs" fullWidth>
-          <UserDataPage editMode={true} onSave={() => setEditOpen(false)} />
-        </Dialog>
-      </div>
-      {user === undefined ? null : user ? (
-        <Button
-          variant="contained"
-          color="error"
-          sx={{ mb: 1, fontWeight: 700 }}
-          onClick={handleLogout}
-        >
-          Logout
-        </Button>
+          <Divider />
+          {/* Links Section */}
+          <Box sx={{ flex: 1, overflowY: 'auto', px: 1, py: 1 }}>
+            <List>
+              {moreLinks.map(link => (
+                <ListItem key={link.path} disablePadding>
+                  <ListItemButton onClick={() => { if (onClose) onClose(); navigate(link.path); }}>
+                    <ListItemText primary={link.label} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+          {/* Edit Profile Dialog */}
+          <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="xs" fullWidth>
+            <UserDataPage editMode={true} onSave={() => setEditOpen(false)} />
+          </Dialog>
+          {/* Logout Button */}
+          <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+            <Button
+              variant="contained"
+              color="error"
+              sx={{ fontWeight: 700, width: '100%' }}
+              onClick={handleLogout}
+            >
+              Logout
+            </Button>
+          </Box>
+        </>
       ) : (
-        <Button
-          variant="contained"
-          color="success"
-          sx={{ mb: 1, fontWeight: 700 }}
-          onClick={handleLogin}
-        >
-          Login
-        </Button>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: 2 }}>
+          <Typography variant="h6" color="primary" fontWeight={700} sx={{ mb: 2, textAlign: 'center' }}>
+            Login to see all options
+          </Typography>
+          <Button
+            variant="contained"
+            color="success"
+            sx={{ fontWeight: 700, width: '100%' }}
+            onClick={handleLogin}
+          >
+            Login
+          </Button>
+        </Box>
       )}
     </Box>
   );

@@ -20,15 +20,51 @@
 
 .featured-products {
   margin-bottom: 32px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
 }
 
+@media (max-width: 600px) {
+  .featured-products {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .product-card {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+
 .product-card {
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(67, 160, 71, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(67, 160, 71, 0.10);
   transition: transform 0.2s, box-shadow 0.2s;
   background: linear-gradient(120deg, #e0f7fa 0%, #fff 100%);
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  font-size: 0.95rem;
 }
 .product-card:hover {
-  transform: scale(1.04);
-  box-shadow: 0 8px 24px rgba(67, 160, 71, 0.18);
+  transform: scale(1.03);
+  box-shadow: 0 6px 18px rgba(67, 160, 71, 0.16);
+}
+
+.product-card .MuiCardContent-root {
+  padding: 8px 8px 0 8px;
+}
+.product-card .MuiTypography-root {
+  font-size: 0.95rem;
+}
+.product-card .MuiButton-root {
+  min-height: 36px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.product-card .MuiIconButton-root {
+  padding: 4px;
 }

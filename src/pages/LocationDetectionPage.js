@@ -3,14 +3,15 @@ import React, { useState } from "react";
 import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import './LocationDetectionPage.css';
 
+
 // Widget version for embedding
+import { useEffect } from "react";
 const LocationDetectionWidget = ({ onLocationDetected }) => {
   const [location, setLocation] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-
-  const detectLocation = () => {
+  useEffect(() => {
     setLoading(true);
     setError("");
     if (navigator.geolocation) {
@@ -58,18 +59,16 @@ const LocationDetectionWidget = ({ onLocationDetected }) => {
       setError("Geolocation not supported.");
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line
+  }, []);
 
   return (
     <Box className="location-widget-root">
       <Box className="location-box">
         <Typography variant="body1">
-          {loading ? <CircularProgress size={20} /> : location ? `Detected: ${location}` : error ? error : "Detect your area for better service!"}
+          {loading ? <CircularProgress size={20} /> : location ? `Detected: ${location}` : error ? error : "Detecting your area..."}
         </Typography>
       </Box>
-      <Button variant="contained" className="detect-btn" onClick={detectLocation} disabled={loading}>
-        {loading ? "Detecting..." : "Detect Location"}
-      </Button>
     </Box>
   );
 };

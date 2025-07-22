@@ -3,7 +3,9 @@ import { auth } from "./firebase";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
+import ProductDetailsPage from "./pages/ProductDetailsPage";
 import "@fontsource/montserrat";
+import { AuthProvider, AuthContext } from "./context/AuthContext";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -15,8 +17,12 @@ import HomeIcon from "@mui/icons-material/Home";
 import CategoryIcon from "@mui/icons-material/Category";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import FavoriteIcon from "@mui/icons-material/Favorite";
-import PersonIcon from "@mui/icons-material/Person";
+import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import Badge from "@mui/material/Badge";
+import Drawer from "@mui/material/Drawer";
+import { db } from "./firebase";
+import { collection, getDocs, onSnapshot } from "firebase/firestore";
 
 
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -58,85 +64,124 @@ const theme = createTheme({
 
 function App() {
   const [nav, setNav] = useState(0);
-  const [user, setUser] = useState(undefined); // undefined = loading, null = not logged in, object = logged in
+  const [cartCount, setCartCount] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { user } = React.useContext(AuthContext) || {};
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      setUser(u);
+    if (!user) return setCartCount(0);
+    const cartRef = collection(db, "users", user.uid, "cart");
+    // Listen for real-time updates to cart
+    const unsubscribe = onSnapshot(cartRef, (snapshot) => {
+      setCartCount(snapshot.size);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <AppBar position="fixed" sx={{ top: 0, background: 'white' }}>
-          <Toolbar sx={{ minHeight: 48 }}>
-            <Typography variant="h6" sx={{ flexGrow: 1, fontFamily: 'Montserrat, Arial, sans-serif', letterSpacing: 0.4, color: '#388e3c', fontWeight: 700 }}>
-              Sri Amman Smart Store
-            </Typography>
-            {/* Hide Login button if user is logged in, and don't show until auth state is loaded */}
-            {user === undefined ? null : !user && (
-              <Typography component="span" sx={{ fontFamily: 'Montserrat', fontWeight: 600, color: 'red', cursor: 'pointer', ml: 2 }} onClick={() => window.location.href='/login'}>
-                Login
+    <AuthProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Router>
+          <AppBar position="fixed" sx={{ top: 0, background: 'white' }}>
+            <Toolbar sx={{ minHeight: 48, px: 2 }}>
+              {/* Hamburger icon opens MorePage drawer */}
+              <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={() => setDrawerOpen(true)}>
+                <MenuIcon sx={{ color: '#388e3c' }} />
+              </IconButton>
+              <Typography
+                variant="h6"
+                sx={{
+                  flexGrow: 1,
+                  fontFamily: 'Montserrat, Arial, sans-serif',
+                  letterSpacing: 0.4,
+                  color: '#388e3c',
+                  fontWeight: 700,
+                  fontSize: { xs: '1.05rem', sm: '1.25rem', md: '1.5rem' },
+                  transition: 'font-size 0.2s',
+                }}
+              >
+                Sri Amman Smart Store
               </Typography>
-            )}
-          </Toolbar>
-        </AppBar>
-        <div style={{ paddingTop: 64, paddingBottom: 56, minHeight: "100vh", background: '#fff' }}>
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/categories" element={<CategoriesPage />} />
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/wishlist" element={<WishlistPage />} />
-              <Route path="/more" element={<MorePage />} />
-              <Route path="/addresses" element={<AddressesPage />} />
-              <Route path="/settings" element={<UserSettingsPage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/checkout" element={<CheckoutPage />} />
-              <Route path="/payment" element={<PaymentOptionsPage />} />
-              <Route path="/orders" element={<MyOrdersPage />} />
-              <Route path="/location" element={<LocationDetectionPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/about" element={<AboutUsPage />} />
-              <Route path="/report" element={<ReportProblemPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/userdata" element={<UserDataPage />} />
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </Suspense>
-        </div>
-        <BottomNavigation
-          showLabels
-          value={nav}
-          onChange={(e, newValue) => {
-            setNav(newValue);
-          }}
-          sx={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 1000,
-            background: '#fff',
-            boxShadow: '0 -2px 12px rgba(56,142,60,0.10)',
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-            fontFamily: 'Montserrat',
-            px: 1.5,
-          }}
-        >
-          <BottomNavigationAction label="Home" icon={<HomeIcon sx={{ color: '#43a047' }} />} href="/" sx={{ fontFamily: 'Montserrat', fontWeight: 600, pl: 2 }} />
-          <BottomNavigationAction label="Categories" icon={<CategoryIcon sx={{ color: '#ff9800' }} />} href="/categories" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
-          <BottomNavigationAction label="Cart" icon={<ShoppingCartIcon sx={{ color: '#1976d2' }} />} href="/cart" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
-          <BottomNavigationAction label="Wishlist" icon={<FavoriteIcon sx={{ color: '#e91e63' }} />} href="/wishlist" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
-          <BottomNavigationAction label="More" icon={<PersonIcon sx={{ color: '#8e24aa' }} />} href="/more" sx={{ fontFamily: 'Montserrat', fontWeight: 600, pr: 2 }} />
-        </BottomNavigation>
-      </Router>
-    </ThemeProvider>
+              {/* Top right: Cart icon always visible */}
+              <IconButton color="inherit" href="/cart" sx={{ ml: 2 }}>
+                <Badge badgeContent={cartCount} color="error" overlap="circular">
+                  <ShoppingCartIcon sx={{ color: '#1976d2' }} />
+                </Badge>
+              </IconButton>
+            </Toolbar>
+          </AppBar>
+          {/* Side Drawer for MorePage */}
+          <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} PaperProps={{ sx: { width: 340, maxWidth: '90vw', pt: 0 } }}>
+            <Suspense fallback={null}>
+              <MorePage onClose={() => setDrawerOpen(false)} />
+            </Suspense>
+          </Drawer>
+          <div style={{ paddingTop: 64, paddingBottom: 56, minHeight: "100vh", background: '#fff' }}>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/product/:id" element={<ProductDetailsPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/cart" element={<CartPage />} />
+                <Route path="/wishlist" element={<WishlistPage />} />
+                {/* <Route path="/more" element={<MorePage />} /> */}
+                <Route path="/addresses" element={<AddressesPage />} />
+                <Route path="/settings" element={<UserSettingsPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/checkout" element={<CheckoutPage />} />
+                <Route path="/payment" element={<PaymentOptionsPage />} />
+                <Route path="/orders" element={<MyOrdersPage />} />
+                <Route path="/location" element={<LocationDetectionPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/about" element={<AboutUsPage />} />
+                <Route path="/report" element={<ReportProblemPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/userdata" element={<UserDataPage />} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </Suspense>
+          </div>
+          <BottomNavigation
+            showLabels
+            value={nav}
+            onChange={(e, newValue) => {
+              setNav(newValue);
+            }}
+            sx={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 1000,
+              background: '#fff',
+              boxShadow: '0 -2px 12px rgba(56,142,60,0.10)',
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              fontFamily: 'Montserrat',
+              px: 1.5,
+            }}
+          >
+            {/* Home */}
+            <BottomNavigationAction label="Home" icon={<HomeIcon sx={{ color: '#43a047' }} />} href="/" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
+            <BottomNavigationAction label="Categories" icon={<CategoryIcon sx={{ color: '#ff9800' }} />} href="/categories" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
+            <BottomNavigationAction label="Search" icon={<SearchIcon sx={{ color: '#388e3c' }} />} href="/search" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
+            <BottomNavigationAction label="Wishlist" icon={<FavoriteIcon sx={{ color: '#e91e63' }} />} href="/wishlist" sx={{ fontFamily: 'Montserrat', fontWeight: 600, pr: 2 }} />
+            <BottomNavigationAction
+              label="Cart"
+              icon={
+                <Badge badgeContent={cartCount} color="error" overlap="circular">
+                  <ShoppingCartIcon sx={{ color: '#1976d2' }} />
+                </Badge>
+              }
+              href="/cart"
+              sx={{ fontFamily: 'Montserrat', fontWeight: 600, pl: 2 }}
+            />
+          </BottomNavigation>
+        </Router>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 export default App;
