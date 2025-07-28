@@ -1,16 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, CircularProgress } from "@mui/material";
+import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, CircularProgress, Stack } from "@mui/material";
 import './CheckoutPage.css';
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, getDocs, doc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
-const orderSummary = {
-  items: [
-    { name: "Organic Rice", qty: 2, price: 120 },
-    { name: "Fresh Vegetables", qty: 1, price: 80 },
-  ],
-  total: 320,
-};
+// orderSummary will be calculated from cartItems
 
 const CheckoutPage = () => {
   const [addresses, setAddresses] = useState([]);
@@ -18,66 +13,72 @@ const CheckoutPage = () => {
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchAddresses = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
         const auth = getAuth();
         const user = auth.currentUser;
         if (!user) {
           setAddresses([]);
+          setCartItems([]);
+          setUserProfile(null);
           setLoading(false);
           return;
         }
         const db = getFirestore();
-        const userDoc = doc(db, 'users', user.uid);
-        const addressesCol = collection(userDoc, 'addresses');
+        // Fetch addresses from subcollection
+        const addressesCol = collection(db, "users", user.uid, "addresses");
         const addressesSnap = await getDocs(addressesCol);
         const addrList = addressesSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
         setAddresses(addrList);
         if (addrList.length > 0) setSelectedAddress(addrList[0].id);
+
+        // Fetch cart items
+        const cartCol = collection(db, "users", user.uid, "cart");
+        const cartSnap = await getDocs(cartCol);
+        setCartItems(cartSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })));
+
+        // Fetch user profile
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        setUserProfile(userDoc.data());
       } catch (err) {
         setAddresses([]);
+        setCartItems([]);
+        setUserProfile(null);
       }
       setLoading(false);
     };
-    fetchAddresses();
+    fetchData();
   }, []);
 
   const handleAddressChange = (event) => {
     setSelectedAddress(event.target.value);
   };
 
-  const handlePayment = async () => {
-    setPaymentLoading(true);
-    // Razorpay options
-    const options = {
-      key: "YOUR_RAZORPAY_KEY_ID", // Replace with your Razorpay key
-      amount: orderSummary.total * 100,
-      currency: "INR",
-      name: "Sri Amman Smart Store",
-      description: "Order Payment",
-      handler: function (response) {
-        setOrderPlaced(true);
-        setPaymentLoading(false);
-        // You can save order/payment details to Firestore here
-      },
-      prefill: {
-        // You can prefill user details here
-      },
-      theme: {
-        color: "#1976d2",
-      },
-      method: {
-        netbanking: true,
-        card: true,
-        upi: true,
-        wallet: true,
-      },
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.open();
+  // Helper to get selected address object
+  const getSelectedAddressObj = () => addresses.find(addr => addr.id === selectedAddress);
+
+  // Calculate order summary from cartItems
+  const orderSummary = {
+    items: cartItems.map(item => ({ name: item.name, qty: item.quantity || item.qty, price: item.sellingPrice || item.price })),
+    total: cartItems.reduce((sum, item) => sum + (item.sellingPrice || item.price) * (item.quantity || item.qty), 0),
+  };
+
+  // Redirect to PaymentOptionsPage with order details
+  const handleProceedToPayment = () => {
+    navigate("/payment", {
+      state: {
+        orderSummary,
+        selectedAddress: getSelectedAddressObj(),
+        userProfile,
+        cartItems,
+      }
+    });
   };
 
   return (
@@ -94,42 +95,43 @@ const CheckoutPage = () => {
         {loading ? (
           <CircularProgress size={24} />
         ) : addresses.length === 0 ? (
-          <Typography variant="body2">No addresses found. Please add an address in your profile.</Typography>
+          <Box>
+            <Typography variant="body2">No addresses found. Please add an address in your profile.</Typography>
+            <Button variant="outlined" sx={{ mt: 2 }} onClick={() => navigate('/addresses')}>Add New Address</Button>
+          </Box>
         ) : (
-          <FormControl fullWidth>
-            <InputLabel id="address-select-label">Address</InputLabel>
-            <Select
-              labelId="address-select-label"
-              value={selectedAddress}
-              label="Address"
-              onChange={handleAddressChange}
-            >
-              {addresses.map((addr) => (
-                <MenuItem key={addr.id} value={addr.id}>
-                  {addr.line1}, {addr.city}, {addr.state} - {addr.pincode}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box>
+            <FormControl fullWidth>
+              <InputLabel id="address-select-label">Address</InputLabel>
+              <Select
+                labelId="address-select-label"
+                value={selectedAddress}
+                label="Address"
+                onChange={handleAddressChange}
+              >
+                {addresses.map((addr) => (
+                  <MenuItem key={addr.id} value={addr.id}>
+                    {addr.line1 || addr.door || ""}, {addr.city || addr.town || ""}, {addr.state || ""} - {addr.pincode || ""}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button variant="outlined" sx={{ mt: 2 }} onClick={() => navigate('/addresses')}>Add New Address</Button>
+          </Box>
         )}
       </Box>
       <Box sx={{ mt: 3 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>Payment Options</Typography>
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>Proceed to Payment</Typography>
         <Button
           variant="contained"
           className="place-order-btn"
           fullWidth
-          disabled={paymentLoading || !selectedAddress}
-          onClick={handlePayment}
+          disabled={loading || !selectedAddress}
+          onClick={handleProceedToPayment}
         >
-          {paymentLoading ? <CircularProgress size={24} /> : "Pay & Place Order"}
+          Proceed to Payment
         </Button>
       </Box>
-      {orderPlaced && (
-        <Box sx={{ mt: 3, p: 2, bgcolor: "#e0ffe0", borderRadius: 2 }}>
-          <Typography variant="h6" color="success.main">Order placed successfully!</Typography>
-        </Box>
-      )}
     </Box>
   );
 };

@@ -1,6 +1,28 @@
+.scrolling-text-container {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  height: 1.4em;
+}
+
+.scrolling-text {
+  display: inline-block;
+  white-space: nowrap;
+  animation: scroll-left 8s linear infinite;
+  font-size: inherit;
+}
+
+@keyframes scroll-left {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
 
 .home-root {
-  padding: 0px 16px 16px 16px;
+  padding: 0px 6px 10px 6px;
   background: #fff;
   min-height: 100vh;
 }
@@ -9,62 +31,146 @@
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(56, 142, 60, 0.08);
+  margin-bottom: 6px;
 }
 
 .section-title {
-  margin: 24px 0 12px 0;
+  margin: 16px 0 8px 0;
   color: #43a047;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  font-size: 1.05rem;
 }
 
 .featured-products {
   margin-bottom: 32px;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
 }
-
-@media (max-width: 600px) {
-  .featured-products {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-  }
-  .product-card {
-    min-width: 0;
-    width: 100%;
-  }
-}
-
-
+/* Update the product card styling */
 .product-card {
-  border-radius: 14px;
-  box-shadow: 0 2px 8px rgba(67, 160, 71, 0.10);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(56, 142, 60, 0.12);
   transition: transform 0.2s, box-shadow 0.2s;
-  background: linear-gradient(120deg, #e0f7fa 0%, #fff 100%);
-  min-height: 320px;
+  background: white;
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  align-items: stretch;
-  font-size: 0.95rem;
-}
-.product-card:hover {
-  transform: scale(1.03);
-  box-shadow: 0 6px 18px rgba(67, 160, 71, 0.16);
+  align-items: center;
+  margin: 4px 0;
+  position: relative;
+  padding: 6px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.product-card .MuiCardContent-root {
-  padding: 8px 8px 0 8px;
+/* Uniform image container */
+.product-card-image-container {
+  width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9f9f9;
+  margin: 8px auto;
+  overflow: hidden;
+  padding: 8px;
 }
-.product-card .MuiTypography-root {
-  font-size: 0.95rem;
+
+.product-card img {
+  max-width: 100%;
+  object-fit: contain;
+
+  display: block;
+  border-radius: 16px !important;
 }
-.product-card .MuiButton-root {
-  min-height: 36px;
+
+/* Consistent text styling */
+.product-card-title {
   font-size: 0.95rem;
+  font-weight: 600;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 4px 0;
+  text-align: center;
+  color: #333;
+}
+
+/* Price styling */
+/* Product Card Price Section */
+.product-card-pricing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 4px 0 0 0;
+  padding-bottom: 0 !important;
+
+}
+
+.price-row {
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.mrp-price {
+  font-size: 0.78rem;
+  color: #757575;
+  text-decoration: line-through;
+}
+
+.selling-price {
+  font-size: 1rem;
   font-weight: 700;
+  color: #388e3c;
 }
-.product-card .MuiIconButton-root {
-  padding: 4px;
+
+.discount-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-bottom: 0 !important;
+}
+
+/* Add to Cart Button */
+/* Add to Cart Button Container - always visible, compact, and fixed at the bottom of the card */
+.add-to-cart-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Add to Cart Button - compact and fits in the card */
+.add-to-cart-btn {
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.78rem !important;
+  padding: 4px 8px !important;
+  min-height: 28px;
+  text-transform: capitalize !important;
+  box-shadow: none !important;
+  transition: all 0.2s !important;
+  line-height: 1.1 !important;
+}
+
+.add-to-cart-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(56, 142, 60, 0.18) !important;
 }

@@ -1,16 +1,12 @@
-
-
 import React, { useState, useEffect, useContext } from "react";
-import { Box, Typography, TextField, Grid, Snackbar, Alert, IconButton, Button, AppBar, Toolbar } from "@mui/material";
+import { Box, Typography, Grid, Snackbar, Alert, TextField } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import './HomePage.css';
 import LocationDetectionWidget from "./LocationDetectionPage";
 import ProductCard from "../components/ProductCard";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
-import { doc, setDoc } from "firebase/firestore";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import MenuIcon from '@mui/icons-material/Menu';
+import { doc, setDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 const Banner = styled(Box)(({ theme }) => ({
@@ -30,18 +26,30 @@ const HomePage = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
-  // Example deliverable check: you can replace this with your own logic
+
+  // Example deliverable check
   const isDeliverable = area && typeof area === 'string' && area.toLowerCase().includes("coimbatore");
 
   useEffect(() => {
-    // Fetch products from Firestore (modular v9+ syntax)
+    // Fetch all products from all categories' items subcollections
     const fetchProducts = async () => {
       try {
-        const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setProducts(fetched);
-        console.log("Fetched products:", fetched);
+        // 1. Get all categories
+        const categoriesSnapshot = await getDocs(collection(db, "categories"));
+        const categories = categoriesSnapshot.docs.map(doc => doc.data().name);
+        let allProducts = [];
+        // 2. For each category, fetch products from products/{category}/items
+        for (const category of categories) {
+          const itemsRef = collection(db, "products", category, "items");
+          const q = query(itemsRef, orderBy("createdAt", "desc"));
+          const snapshot = await getDocs(q);
+          const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), category }));
+          allProducts = allProducts.concat(products);
+        }
+        // 3. Sort all products by createdAt (desc)
+        allProducts.sort((a, b) => (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt)));
+        setProducts(allProducts);
+        console.log("Fetched all products:", allProducts);
       } catch (err) {
         setProducts([]);
         console.error("Error fetching products:", err);
@@ -86,42 +94,45 @@ const HomePage = () => {
 
   return (
     <Box className="home-root">
-      <TextField className="search-bar" label="Search products" variant="outlined" size="small" fullWidth />
+       <TextField className="search-bar" label="Search products" variant="outlined" size="small" fullWidth />
       {/* Only show detected location and deliverable/not text below search bar */}
+      <LocationDetectionWidget onLocationDetected={setArea} />
       {area && (
         <Box sx={{ mb: 1, mt: 0.5, px: 0 }}>
-          <Typography variant="caption" sx={{ color: '#388e3c', fontWeight: 400, fontSize: '0.72rem', lineHeight: 1.2, p: 0, m: 0 }}>
-            {area}
-          </Typography>
+          
           <Typography variant="caption" sx={{ color: isDeliverable ? '#388e3c' : 'red', fontWeight: 500, fontSize: '0.72rem', lineHeight: 1.2, p: 0, m: 0, display: 'block' }}>
             {isDeliverable ? 'Delivery available in your area' : 'Sorry, delivery not available in your area'}
           </Typography>
         </Box>
       )}
-      <LocationDetectionWidget onLocationDetected={setArea} />
-      <Typography variant="h5" className="section-title" sx={{ mt: 3, mb: 2 }}>All Products</Typography>
+
+      <Typography className="section-title" variant="h6">All Products</Typography>
+
       {loading ? (
-        <Box sx={{ textAlign: 'center', mt: 4 }}>
-          <Typography variant="body1" color="text.secondary">Loading products...</Typography>
-        </Box>
+        <Typography>Loading products...</Typography>
       ) : products.length === 0 ? (
-        <Box sx={{ textAlign: 'center', mt: 4 }}>
-          <Typography variant="body1" color="text.secondary">No products found.</Typography>
-        </Box>
+        <Typography>No products found.</Typography>
       ) : (
-        <Grid container spacing={3} className="featured-products">
-          {products.map(product => (
-            <Grid item xs={12} sm={6} md={6} key={product.id}>
-              <ProductCard
-                product={product}
-                onAddToCart={handleAddToCart}
-                onAddToWishlist={handleAddToWishlist}
-              />
-            </Grid>
-          ))}
-        </Grid>
+       <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
+  {products.map((product) => (
+    <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id} 
+          sx={{ 
+            display: 'flex', 
+            flexBasis: '45%', 
+            maxWidth: '45%',
+            flexGrow: 0 
+          }}>
+      <ProductCard
+        product={product}
+        onAddToCart={handleAddToCart}
+        onAddToWishlist={handleAddToWishlist}
+      />
+    </Grid>
+  ))}
+</Grid>
       )}
-      <Snackbar open={snackbarOpen} autoHideDuration={2000} onClose={() => setSnackbarOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+
+      <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert onClose={() => setSnackbarOpen(false)} severity="success" sx={{ width: '100%' }}>
           Added to cart!
         </Alert>
@@ -129,4 +140,5 @@ const HomePage = () => {
     </Box>
   );
 };
+
 export default HomePage;

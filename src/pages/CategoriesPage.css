@@ -1,8 +1,15 @@
-.categories-root {
-  padding: 16px;
-  background: #fff;
-  min-height: 100vh;
+/* Container for scrolling category title to prevent clipping */
+.scrolling-category-title-container {
+  width: 100%;
+  overflow: hidden;
+  height: 1.4em;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
 }
+/* Category Card Styles - similar to product card in HomePage */
+
 
 .category-card {
   border-radius: 16px;
@@ -10,18 +17,64 @@
   background: linear-gradient(120deg, #fffde7 0%, #fff 100%);
   transition: transform 0.2s, box-shadow 0.2s;
   text-align: center;
-  padding: 24px 0;
+  padding: 0 0 10px 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-height: unset;
 }
+
 .category-card:hover {
-  transform: scale(1.04);
-  box-shadow: 0 8px 24px rgba(255, 152, 0, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(56, 142, 60, 0.18);
 }
-.category-icon {
-  font-size: 48px;
+
+
+
+.category-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  object-fit: cover;
+  display: block;
+  border-radius: 16px 16px 0 0 !important;
+  margin: 0;
+  background: #f7f7f7;
+}
+
+
+
+.scrolling-category-title {
+  font-size: 1rem;
+  font-weight: 700;
+  min-width: 120%;
+  white-space: nowrap;
+  overflow: visible;
+  margin-top: 10px;
+  text-align: left;
   color: #388e3c;
+  display: inline-block;
+  animation: scroll-left-cat 8s linear infinite;
 }
-.category-title {
-  margin-top: 12px;
-  font-weight: 600;
-  color: #388e3c;
+
+@keyframes scroll-left-cat {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
 }
+.categories-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+
+/* Remove duplicate .category-card and related rules */

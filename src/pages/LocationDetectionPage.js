@@ -63,13 +63,9 @@ const LocationDetectionWidget = ({ onLocationDetected }) => {
   }, []);
 
   return (
-    <Box className="location-widget-root">
-      <Box className="location-box">
-        <Typography variant="body1">
-          {loading ? <CircularProgress size={20} /> : location ? `Detected: ${location}` : error ? error : "Detecting your area..."}
-        </Typography>
-      </Box>
-    </Box>
+    <Typography variant="caption" sx={{ display: 'block', mt: 1, mb: 0.5, color: error ? 'error.main' : '#388e3c', fontWeight: 400, fontSize: '0.85em' }}>
+      {loading ? <CircularProgress size={14} sx={{ verticalAlign: 'middle', mr: 1 }} /> : location ? `Detected: ${location}` : error ? error : "Detecting your area..."}
+    </Typography>
   );
 };
 

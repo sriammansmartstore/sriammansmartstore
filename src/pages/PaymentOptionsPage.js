@@ -7,6 +7,7 @@ import { IconButton } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate, useLocation } from "react-router-dom";
 import './PaymentOptionsPage.css';
+import { getFirestore, collection, addDoc } from "firebase/firestore";
 
 const paymentOptions = [
   { id: 1, name: "Credit/Debit Card", icon: <CreditCardIcon color="primary" />, type: "online" },
@@ -19,21 +20,52 @@ const PaymentOptionsPage = () => {
   const location = useLocation();
   // Get order details from location.state (passed from checkout)
   const orderSummary = location.state?.orderSummary || {
-    items: [
-      { name: "Organic Rice", qty: 2, price: 120 },
-      { name: "Fresh Vegetables", qty: 1, price: 80 },
-    ],
-    total: 320,
+    items: [],
+    total: 0,
   };
   const selectedAddress = location.state?.selectedAddress || null;
+  const userProfile = location.state?.userProfile || null;
+  const cartItems = location.state?.cartItems || [];
 
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMsg, setDialogMsg] = useState("");
 
+  // Save order to Firestore
+  const saveOrder = async (paymentMethod, paymentStatus, razorpayDetails = null) => {
+    setLoading(true);
+    try {
+      const db = getFirestore();
+      const newOrderId = `ORD-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+      await addDoc(collection(db, "orders"), {
+        orderId: newOrderId,
+        userProfile,
+        address: selectedAddress,
+        cartItems,
+        total: orderSummary.total,
+        paymentMethod,
+        paymentStatus,
+        razorpayDetails,
+        createdAt: new Date().toISOString(),
+        status: paymentMethod === "COD" ? "Pending Payment" : "Placed"
+      });
+      setDialogMsg(paymentMethod === "COD" ? "Order placed! Please pay cash on delivery." : "Payment successful! Your order has been placed.");
+      setDialogOpen(true);
+    } catch (err) {
+      setDialogMsg("Failed to place order. Please try again.");
+      setDialogOpen(true);
+    }
+    setLoading(false);
+  };
+
   // Razorpay payment handler
   const handleRazorpay = () => {
     setLoading(true);
+    if (!window.Razorpay) {
+      alert("Payment service unavailable. Please try again later.");
+      setLoading(false);
+      return;
+    }
     const options = {
       key: "YOUR_RAZORPAY_KEY_ID", // Replace with your Razorpay key
       amount: orderSummary.total * 100,
@@ -41,12 +73,12 @@ const PaymentOptionsPage = () => {
       name: "Sri Amman Smart Store",
       description: "Order Payment",
       handler: function (response) {
-        setLoading(false);
-        setDialogMsg("Payment successful! Your order has been placed.");
-        setDialogOpen(true);
-        // Save order/payment details to Firestore here if needed
+        saveOrder("Razorpay", "Paid", response);
       },
-      prefill: {},
+      prefill: {
+        name: userProfile?.fullName || "",
+        contact: userProfile?.contact || ""
+      },
       theme: { color: "#1976d2" },
       method: {
         netbanking: true,
@@ -60,14 +92,8 @@ const PaymentOptionsPage = () => {
   };
 
   // Cash on Delivery handler
-  const handleCOD = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setDialogMsg("Order placed! Please pay cash on delivery.");
-      setDialogOpen(true);
-      // Save COD order to Firestore here if needed
-    }, 1200);
+  const handleCOD = async () => {
+    await saveOrder("COD", "Pending");
   };
 
   const handlePay = (opt) => {

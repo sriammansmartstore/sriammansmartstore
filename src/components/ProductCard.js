@@ -1,22 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardMedia, CardContent, Typography, IconButton, Button, Box, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemButton, ListItemText } from "@mui/material";
+import React, { useState, useEffect, useContext } from "react";
+import {
+  Card, CardMedia, CardContent, Typography, IconButton, Button, Box,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField
+} from "@mui/material";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import RemoveIcon from '@mui/icons-material/Remove';
 import AddIcon from '@mui/icons-material/Add';
 import { Link } from "react-router-dom";
-
 import { db } from "../firebase";
 import { doc, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
-import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
+import "./../pages/HomePage.css"; // Ensure the CSS is applied
 
 const getDiscount = (mrp, sellingPrice) => {
   if (!mrp || !sellingPrice || mrp <= sellingPrice) return 0;
   return Math.round(((mrp - sellingPrice) / mrp) * 100);
 };
 
-const ProductCard = ({ product, onAddToCart }) => {
+const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const [quantity, setQuantity] = useState(1);
   const [showQuantity, setShowQuantity] = useState(false);
   const [wishlistDialogOpen, setWishlistDialogOpen] = useState(false);
@@ -53,7 +55,6 @@ const ProductCard = ({ product, onAddToCart }) => {
     }
   };
 
-  // Wishlist logic
   const handleWishlistIconClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -70,6 +71,7 @@ const ProductCard = ({ product, onAddToCart }) => {
         addedAt: new Date().toISOString(),
       });
       setWishlistDialogOpen(false);
+      if (onAddToWishlist) onAddToWishlist(product);
     } catch (err) {
       alert("Failed to add to wishlist.");
     }
@@ -86,6 +88,7 @@ const ProductCard = ({ product, onAddToCart }) => {
       });
       setWishlistDialogOpen(false);
       setNewWishlistName("");
+      if (onAddToWishlist) onAddToWishlist(product);
     } catch (err) {
       alert("Failed to create wishlist.");
     }
@@ -94,19 +97,19 @@ const ProductCard = ({ product, onAddToCart }) => {
   const handleAddToGeneralWishlist = async () => {
     if (!user) return;
     try {
-      // General wishlist id is 'general'
       await setDoc(doc(db, "users", user.uid, "wishlists", "general", "items", product.id), {
         ...product,
         addedAt: new Date().toISOString(),
       });
       setWishlistDialogOpen(false);
+      if (onAddToWishlist) onAddToWishlist(product);
     } catch (err) {
       alert("Failed to add to general wishlist.");
     }
   };
 
   return (
-    <Card className="product-card" sx={{ position: "relative", boxShadow: 3, borderRadius: 3, cursor: "pointer", transition: "0.2s", '&:hover': { boxShadow: 6 }, minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <Card className="product-card" sx={{ height: '100%' }}>
       <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
         <IconButton
           color="secondary"
@@ -116,44 +119,88 @@ const ProductCard = ({ product, onAddToCart }) => {
           <FavoriteBorderIcon fontSize="small" />
         </IconButton>
       </Box>
-      <Link to={`/product/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-        <CardMedia
-          component="img"
-          height="120"
-          image={product.imageUrls?.[0] || "https://via.placeholder.com/180"}
-          alt={product.name}
-          sx={{ objectFit: "cover", borderRadius: '12px', width: '100%', height: '120px' }}
-        />
-        <CardContent sx={{ p: 1, pb: 0 }}>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: '1rem', mb: 0.5, lineHeight: 1.1 }}>{product.name}</Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through", fontSize: '0.85rem' }}>₹{product.mrp}</Typography>
-            <Typography variant="body2" color="primary" fontWeight={700} sx={{ fontSize: '1rem' }}>₹{product.sellingPrice}</Typography>
-            {discount > 0 && (
-              <Typography variant="caption" sx={{ color: "#d32f2f", fontWeight: 700, ml: 0.5, fontSize: '0.8rem' }}>{discount}% OFF</Typography>
-            )}
-          </Box>
-        </CardContent>
+      <Link to={`/product/${product.category}/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' }}>
+        <Box sx={{ width: '100%', minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', pt: 0, mt: 0, mb: 0 }}>
+          <CardMedia
+            component="img"
+            image={product.imageUrls?.[0] || "https://via.placeholder.com/180"}
+            alt={product.name}
+            sx={{ objectFit: "contain", width: '100%', height: 120, maxHeight: 140, background: '#f8f8f8' }}
+          />
+        </Box>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+          <CardContent sx={{ p: 1, pb: 0, flex: 1, paddingBottom: '0 !important' }}>
+            <Box className="scrolling-text-container">
+              <Typography
+                className="scrolling-text"
+                variant="subtitle1"
+                fontWeight={700}
+                sx={{ fontSize: '1rem', mb: 0.5, lineHeight: 1.1 }}
+              >
+                {product.name}
+              </Typography>
+            </Box>
+            {/* Product Pricing Section */}
+            <Box className="product-card-pricing">
+              <Box className="price-row">
+                <Typography className="mrp-price">₹{product.mrp}</Typography>
+                <Typography className="selling-price">₹{product.sellingPrice}</Typography>
+              </Box>
+              {discount > 0 && (
+                <Box className="price-row" style={{ marginTop: 0, marginBottom: 0, paddingBottom: 0 }}>
+                  <Typography className="discount-badge" style={{ marginBottom: 0, paddingBottom: 0 }}>{discount}% OFF</Typography>
+                </Box>
+              )}
+            </Box>
+          </CardContent>
+        </Box>
       </Link>
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, mt: 1, px: 1, pb: 1 }}>
+      {/* Add to Cart Section */}
+      <Box className="add-to-cart-container" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 40, p: 0, m: 0, mt: 0 }}>
         {showQuantity && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1, width: '100%' }}>
-            <IconButton size="small" sx={{ p: 0.5 }} onClick={e => { e.stopPropagation(); setQuantity(q => Math.max(1, q - 1)); }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0.5 }}>
+            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={e => {
+              e.stopPropagation();
+              if (quantity <= 1) {
+                setShowQuantity(false);
+                setQuantity(1);
+              } else {
+                setQuantity(q => q - 1);
+              }
+            }}>
               <RemoveIcon fontSize="small" />
             </IconButton>
-            <Typography sx={{ mx: 1, minWidth: 24, textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>{quantity}</Typography>
-            <IconButton size="small" sx={{ p: 0.5 }} onClick={e => { e.stopPropagation(); setQuantity(q => q + 1); }}>
+            <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{quantity}</Typography>
+            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={e => {
+              e.stopPropagation();
+              setQuantity(q => q + 1);
+            }}>
               <AddIcon fontSize="small" />
             </IconButton>
           </Box>
         )}
         <Button
+          className="add-to-cart-btn"
           variant="contained"
           color={showQuantity ? "success" : "primary"}
-          startIcon={<AddShoppingCartIcon />}
-          onClick={handleAddToCartClick}
-          sx={{ borderRadius: 2, width: '100%', minHeight: 36, fontSize: '0.95rem', fontWeight: 700, transition: 'background 0.2s', mb: 0.5 }}
-        >{showQuantity ? "Confirm Add" : "Add to Cart"}</Button>
+          startIcon={!showQuantity ? <AddShoppingCartIcon fontSize="small" /> : null}
+          onClick={e => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!showQuantity) {
+              setShowQuantity(true);
+              setQuantity(1);
+            } else {
+              onAddToCart(product, quantity);
+              setShowQuantity(false);
+              setQuantity(1);
+            }
+          }}
+          size="small"
+          sx={{ fontSize: '0.78rem', letterSpacing: 0.2, py: 0.7, px: 1.5, minWidth: 0, width: '100%', mt: showQuantity ? 0 : undefined }}
+        >
+          {showQuantity ? "Confirm" : "Add to Cart"}
+        </Button>
       </Box>
 
       {/* Wishlist Dialog */}
