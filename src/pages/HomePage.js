@@ -17,6 +17,7 @@ const Banner = styled(Box)(({ theme }) => ({
   textAlign: "center",
 }));
 
+
 const HomePage = () => {
   const [area, setArea] = useState("");
   const [products, setProducts] = useState([]);
@@ -24,6 +25,22 @@ const HomePage = () => {
   const [wishlist, setWishlist] = useState([]);
   const [cart, setCart] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  // Listen for voice search event or localStorage value
+  useEffect(() => {
+    // On mount, check if a voice search query exists
+    const voiceQuery = localStorage.getItem('voice_search_query');
+    if (voiceQuery) {
+      setSearch(voiceQuery);
+      localStorage.removeItem('voice_search_query');
+    }
+    // Listen for custom event
+    const handler = (e) => {
+      if (e.detail) setSearch(e.detail);
+    };
+    window.addEventListener('voice-search', handler);
+    return () => window.removeEventListener('voice-search', handler);
+  }, []);
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -60,6 +77,36 @@ const HomePage = () => {
     fetchProducts();
   }, []);
 
+  // Filter and sort products based on search
+  const getFilteredProducts = () => {
+    if (!search.trim()) return products;
+    const searchText = search.trim().toLowerCase();
+    // Score function: higher score = more relevant
+    function getScore(product) {
+      let score = 0;
+      // Name exact/partial match
+      if (product.name && product.name.toLowerCase().includes(searchText)) score += 10;
+      if (product.nameTamil && product.nameTamil.toLowerCase().includes(searchText)) score += 10;
+      // Category match
+      if (product.category && product.category.toLowerCase().includes(searchText)) score += 5;
+      // Keywords match (comma separated string)
+      if (product.keywords) {
+        const keywordsArr = product.keywords.split(',').map(k => k.trim().toLowerCase());
+        if (keywordsArr.some(k => k.includes(searchText))) score += 7;
+      }
+      // Description match
+      if (product.description && product.description.toLowerCase().includes(searchText)) score += 2;
+      return score;
+    }
+    // Filter products with score > 0, then sort by score desc, then createdAt desc
+    return products
+      .map(p => ({ ...p, _score: getScore(p) }))
+      .filter(p => p._score > 0)
+      .sort((a, b) => b._score - a._score || (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt)));
+  };
+
+  const filteredProducts = getFilteredProducts();
+
   const handleAddToCart = async (product, quantity) => {
     if (!user) return alert("Please login to add to cart.");
     try {
@@ -94,12 +141,21 @@ const HomePage = () => {
 
   return (
     <Box className="home-root">
-       <TextField className="search-bar" label="Search products" variant="outlined" size="small" fullWidth />
+      <TextField
+        className="search-bar"
+        label="Search products"
+        variant="outlined"
+        size="small"
+        fullWidth
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        autoComplete="off"
+        sx={{ mb: 1 }}
+      />
       {/* Only show detected location and deliverable/not text below search bar */}
       <LocationDetectionWidget onLocationDetected={setArea} />
       {area && (
         <Box sx={{ mb: 1, mt: 0.5, px: 0 }}>
-          
           <Typography variant="caption" sx={{ color: isDeliverable ? '#388e3c' : 'red', fontWeight: 500, fontSize: '0.72rem', lineHeight: 1.2, p: 0, m: 0, display: 'block' }}>
             {isDeliverable ? 'Delivery available in your area' : 'Sorry, delivery not available in your area'}
           </Typography>
@@ -110,26 +166,26 @@ const HomePage = () => {
 
       {loading ? (
         <Typography>Loading products...</Typography>
-      ) : products.length === 0 ? (
+      ) : filteredProducts.length === 0 ? (
         <Typography>No products found.</Typography>
       ) : (
-       <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
-  {products.map((product) => (
-    <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id} 
-          sx={{ 
-            display: 'flex', 
-            flexBasis: '45%', 
-            maxWidth: '45%',
-            flexGrow: 0 
-          }}>
-      <ProductCard
-        product={product}
-        onAddToCart={handleAddToCart}
-        onAddToWishlist={handleAddToWishlist}
-      />
-    </Grid>
-  ))}
-</Grid>
+        <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
+          {filteredProducts.map((product) => (
+            <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id}
+              sx={{
+                display: 'flex',
+                flexBasis: '45%',
+                maxWidth: '45%',
+                flexGrow: 0
+              }}>
+              <ProductCard
+                product={product}
+                onAddToCart={handleAddToCart}
+                onAddToWishlist={handleAddToWishlist}
+              />
+            </Grid>
+          ))}
+        </Grid>
       )}
 
       <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

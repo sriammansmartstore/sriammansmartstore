@@ -20,6 +20,8 @@ const ProductDetailsPage = () => {
   const [userReview, setUserReview] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [otherProducts, setOtherProducts] = useState([]);
+  const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
+  const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const { user, userDetails } = useContext(AuthContext) || {};
 
   useEffect(() => {
@@ -78,18 +80,44 @@ const ProductDetailsPage = () => {
 
   if (product === null) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Product not found.</Typography>;
   if (!product) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading...</Typography>;
-  const discount = getDiscount(product.mrp, product.sellingPrice);
+  // Option selection logic
+  const options = Array.isArray(product.options) && product.options.length > 0 ? product.options : [{
+    mrp: product.mrp,
+    sellingPrice: product.sellingPrice,
+    specialPrice: product.specialPrice,
+    unit: product.unit,
+    unitSize: product.unitSize,
+    quantity: product.quantity
+  }];
+  const selectedOption = options[selectedOptionIdx] || options[0];
+  const discount = getDiscount(selectedOption.mrp, selectedOption.sellingPrice);
 
   return (
     <Box className="product-details-root" sx={{ maxWidth: 700, mx: "auto", mt: 0, p: 2, boxShadow: 3, borderRadius: 3, bgcolor: "#fff" }}>
       <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative' }}>
-        <Box sx={{ position: 'relative', width: { xs: '100%', md: 300 }, height: 300 }}>
+        {/* Image gallery */}
+        <Box sx={{ position: 'relative', width: { xs: '100%', md: 300 }, height: 300, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <CardMedia
             component="img"
-            image={product.imageUrls?.[0] || "https://via.placeholder.com/300"}
+            image={product.imageUrls?.[selectedImageIdx] || product.imageUrls?.[0] || "https://via.placeholder.com/300"}
             alt={product.name}
-            sx={{ width: '100%', height: '100%', objectFit: "cover", borderRadius: 2 }}
+            sx={{ width: '100%', height: 220, objectFit: "cover", borderRadius: 2, mb: 1 }}
           />
+          {/* Thumbnails */}
+          {Array.isArray(product.imageUrls) && product.imageUrls.length > 1 && (
+            <Box sx={{ display: 'flex', gap: 1, mt: 1, justifyContent: 'center' }}>
+              {product.imageUrls.map((img, idx) => (
+                <CardMedia
+                  key={idx}
+                  component="img"
+                  image={img}
+                  alt={`thumb-${idx}`}
+                  onClick={() => setSelectedImageIdx(idx)}
+                  sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1, border: selectedImageIdx === idx ? '2px solid #388e3c' : '1px solid #eee', cursor: 'pointer', boxShadow: selectedImageIdx === idx ? 2 : 0 }}
+                />
+              ))}
+            </Box>
+          )}
           {/* Wishlist button at top right */}
           <IconButton color="secondary" sx={{ position: 'absolute', top: 12, right: 12, bgcolor: '#fff', boxShadow: 2, zIndex: 2 }}>
             <FavoriteBorderIcon />
@@ -107,11 +135,34 @@ const ProductDetailsPage = () => {
           {/* Modern pricing and cart UI */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flex: 1 }}>
-              <Typography variant="h6" sx={{ textDecoration: "line-through", color: '#888', fontWeight: 500 }}>₹{product.mrp}</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="h4" color="primary" fontWeight={700}>₹{product.sellingPrice}</Typography>
+              {/* Option selector */}
+              {options.length > 1 && (
+                <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                  {options.map((opt, idx) => (
+                    <Button
+                      key={idx}
+                      variant={selectedOptionIdx === idx ? 'contained' : 'outlined'}
+                      color={selectedOptionIdx === idx ? 'primary' : 'inherit'}
+                      size="small"
+                      sx={{ fontWeight: 600, borderRadius: 2, minWidth: 0, px: 1.5, fontSize: '0.95rem' }}
+                      onClick={() => setSelectedOptionIdx(idx)}
+                    >
+                      {opt.unitSize} {opt.unit}
+                    </Button>
+                  ))}
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Typography variant="h4" color="primary" fontWeight={700}>
+                  ₹{selectedOption.sellingPrice}{selectedOption.unit ? `/${selectedOption.unitSize || ''} ${selectedOption.unit}` : ''}
+                </Typography>
+                {selectedOption.mrp && selectedOption.mrp > selectedOption.sellingPrice && (
+                  <Typography variant="body1" sx={{ textDecoration: 'line-through', color: '#888', fontWeight: 500 }}>
+                    ₹{selectedOption.mrp}{selectedOption.unit ? `/${selectedOption.unitSize || ''} ${selectedOption.unit}` : ''}
+                  </Typography>
+                )}
                 {discount > 0 && (
-                  <Typography variant="body2" sx={{ color: "#d32f2f", fontWeight: 700, ml: 1 }}>{discount}% OFF</Typography>
+                  <Typography variant="body2" sx={{ color: '#d32f2f', fontWeight: 700, ml: 1 }}>{discount}% OFF</Typography>
                 )}
               </Box>
             </Box>
@@ -131,6 +182,7 @@ const ProductDetailsPage = () => {
             color="primary"
             startIcon={<AddShoppingCartIcon />}
             sx={{ width: '100%', py: 1.2, fontSize: '1.08rem', fontWeight: 700, borderRadius: 2, boxShadow: 2 }}
+            onClick={() => {/* handle add to cart with selectedOption */}}
           >
             Add to Cart
           </Button>

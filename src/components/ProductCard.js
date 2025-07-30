@@ -13,6 +13,14 @@ import { doc, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import "./../pages/HomePage.css"; // Ensure the CSS is applied
 
+
+// Helper to get the middle option (or first if only one)
+const getMiddleOption = (options) => {
+  if (!Array.isArray(options) || options.length === 0) return null;
+  const idx = Math.floor(options.length / 2);
+  return options[idx];
+};
+
 const getDiscount = (mrp, sellingPrice) => {
   if (!mrp || !sellingPrice || mrp <= sellingPrice) return 0;
   return Math.round(((mrp - sellingPrice) / mrp) * 100);
@@ -25,7 +33,9 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const [wishlists, setWishlists] = useState([]);
   const [newWishlistName, setNewWishlistName] = useState("");
   const [selectingWishlist, setSelectingWishlist] = useState(false);
-  const discount = getDiscount(product.mrp, product.sellingPrice);
+  // Pick the middle option for display if available
+  const option = getMiddleOption(product.options) || product.options?.[0] || {};
+  const discount = getDiscount(option.mrp, option.sellingPrice);
   const { user } = useContext(AuthContext);
 
   useEffect(() => {
@@ -109,7 +119,40 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   };
 
   return (
-    <Card className="product-card" sx={{ height: '100%' }}>
+    <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
+      {/* Discount Ribbon */}
+      {discount > 0 && (
+        <Box sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          zIndex: 3,
+          width: 70,
+          height: 70,
+          pointerEvents: 'none',
+        }}>
+          <Box sx={{
+            position: 'absolute',
+            top: 10,
+            left: -28,
+            width: 120,
+            transform: 'rotate(-45deg)',
+            background: 'linear-gradient(90deg, #d32f2f 60%, #ff5252 100%)',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: '0.8rem',
+            textAlign: 'center',
+            py: 0.5,
+            boxShadow: 2,
+            letterSpacing: 0.5,
+            borderRadius: 1,
+            userSelect: 'none',
+          }}>
+            {discount}% OFF
+          </Box>
+        </Box>
+      )}
+      {/* Wishlist Icon */}
       <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
         <IconButton
           color="secondary"
@@ -140,25 +183,26 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                 {product.name}
               </Typography>
             </Box>
-            {/* Product Pricing Section */}
-            <Box className="product-card-pricing">
-              <Box className="price-row">
-                <Typography className="mrp-price">₹{product.mrp}</Typography>
-                <Typography className="selling-price">₹{product.sellingPrice}</Typography>
+            {/* Product Pricing Section: Show selling price, MRP (striked out), and discount if any */}
+            <Box className="product-card-pricing" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'nowrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap' }}>
+                <Typography className="selling-price" sx={{ fontWeight: 700, color: '#388e3c', fontSize: '1.1rem', mr: 1 }}>
+                  ₹{option.sellingPrice}
+                </Typography>
+                {option.mrp && option.mrp > option.sellingPrice && (
+                  <Typography className="mrp-price" sx={{ textDecoration: 'line-through', color: '#888', fontWeight: 500, fontSize: '1rem', mr: 1 }}>
+                    ₹{option.mrp}
+                  </Typography>
+                )}
               </Box>
-              {discount > 0 && (
-                <Box className="price-row" style={{ marginTop: 0, marginBottom: 0, paddingBottom: 0 }}>
-                  <Typography className="discount-badge" style={{ marginBottom: 0, paddingBottom: 0 }}>{discount}% OFF</Typography>
-                </Box>
-              )}
             </Box>
           </CardContent>
         </Box>
       </Link>
       {/* Add to Cart Section */}
-      <Box className="add-to-cart-container" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 40, p: 0, m: 0, mt: 0 }}>
+      <Box className="add-to-cart-container" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 40, p: 0, m: 0, mt: 0, gap: 0 }}>
         {showQuantity && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0 }}>
             <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={e => {
               e.stopPropagation();
               if (quantity <= 1) {

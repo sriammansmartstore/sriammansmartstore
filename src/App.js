@@ -1,9 +1,9 @@
+import BottomNavbar from "./components/BottomNavbar";
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { auth } from "./firebase";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import ProductDetailsPage from "./pages/ProductDetailsPage";
 import "@fontsource/montserrat";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
 import AppBar from "@mui/material/AppBar";
@@ -11,13 +11,13 @@ import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Typography from "@mui/material/Typography";
-import BottomNavigation from "@mui/material/BottomNavigation";
-import BottomNavigationAction from "@mui/material/BottomNavigationAction";
-import HomeIcon from "@mui/icons-material/Home";
-import CategoryIcon from "@mui/icons-material/Category";
+// import BottomNavigation from "@mui/material/BottomNavigation";
+// import BottomNavigationAction from "@mui/material/BottomNavigationAction";
+// import HomeIcon from "@mui/icons-material/Home";
+// import CategoryIcon from "@mui/icons-material/Category";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import FavoriteIcon from "@mui/icons-material/Favorite";
-import SearchIcon from "@mui/icons-material/Search";
+// import FavoriteIcon from "@mui/icons-material/Favorite";
+// import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import Badge from "@mui/material/Badge";
 import Drawer from "@mui/material/Drawer";
@@ -26,12 +26,12 @@ import { collection, getDocs, onSnapshot } from "firebase/firestore";
 
 
 const HomePage = lazy(() => import("./pages/HomePage"));
+const ProductDetailsPage = lazy(() => import("./pages/ProductDetailsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const WishlistPage = lazy(() => import("./pages/WishlistPage"));
 const AddressesPage = lazy(() => import("./pages/AddressesPage"));
 const UserSettingsPage = lazy(() => import("./pages/UserSettingsPage"));
-const SearchPage = lazy(() => import("./pages/SearchPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const PaymentOptionsPage = lazy(() => import("./pages/PaymentOptionsPage"));
 const MyOrdersPage = lazy(() => import("./pages/MyOrdersPage"));
@@ -127,10 +127,8 @@ function App() {
                 <Route path="/category/:categoryName" element={<CategoryProductsPage />} />
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="/wishlist" element={<WishlistPage />} />
-                {/* <Route path="/more" element={<MorePage />} /> */}
                 <Route path="/addresses" element={<AddressesPage />} />
                 <Route path="/settings" element={<UserSettingsPage />} />
-                <Route path="/search" element={<SearchPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
                 <Route path="/payment" element={<PaymentOptionsPage />} />
                 <Route path="/orders" element={<MyOrdersPage />} />
@@ -145,42 +143,7 @@ function App() {
               </Routes>
             </Suspense>
           </div>
-          <BottomNavigation
-            showLabels
-            value={nav}
-            onChange={(e, newValue) => {
-              setNav(newValue);
-            }}
-            sx={{
-              position: "fixed",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              zIndex: 1000,
-              background: '#fff',
-              boxShadow: '0 -2px 12px rgba(56,142,60,0.10)',
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              fontFamily: 'Montserrat',
-              px: 1.5,
-            }}
-          >
-            {/* Home */}
-            <BottomNavigationAction label="Home" icon={<HomeIcon sx={{ color: '#43a047' }} />} href="/" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
-            <BottomNavigationAction label="Categories" icon={<CategoryIcon sx={{ color: '#ff9800' }} />} href="/categories" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
-            <BottomNavigationAction label="Search" icon={<SearchIcon sx={{ color: '#388e3c' }} />} href="/search" sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
-            <BottomNavigationAction label="Wishlist" icon={<FavoriteIcon sx={{ color: '#e91e63' }} />} href="/wishlist" sx={{ fontFamily: 'Montserrat', fontWeight: 600, pr: 2 }} />
-            <BottomNavigationAction
-              label="Cart"
-              icon={
-                <Badge badgeContent={cartCount} color="error" overlap="circular">
-                  <ShoppingCartIcon sx={{ color: '#1976d2' }} />
-                </Badge>
-              }
-              href="/cart"
-              sx={{ fontFamily: 'Montserrat', fontWeight: 600, pl: 2 }}
-            />
-          </BottomNavigation>
+          <BottomNavbar />
         </Router>
       </ThemeProvider>
     </AuthProvider>
