@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, CircularProgress, Stack } from "@mui/material";
 import './CheckoutPage.css';
-import { getAuth } from "firebase/auth";
-import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { AuthContext } from "../context/AuthContext";
+import { db } from "../firebase";
+import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 // orderSummary will be calculated from cartItems
 
 const CheckoutPage = () => {
+  const { user } = useContext(AuthContext);
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [loading, setLoading] = useState(true);
@@ -18,43 +20,33 @@ const CheckoutPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const auth = getAuth();
-        const user = auth.currentUser;
-        if (!user) {
-          setAddresses([]);
-          setCartItems([]);
-          setUserProfile(null);
-          setLoading(false);
-          return;
-        }
-        const db = getFirestore();
-        // Fetch addresses from subcollection
-        const addressesCol = collection(db, "users", user.uid, "addresses");
-        const addressesSnap = await getDocs(addressesCol);
-        const addrList = addressesSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-        setAddresses(addrList);
-        if (addrList.length > 0) setSelectedAddress(addrList[0].id);
-
-        // Fetch cart items
-        const cartCol = collection(db, "users", user.uid, "cart");
-        const cartSnap = await getDocs(cartCol);
-        setCartItems(cartSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })));
-
-        // Fetch user profile
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        setUserProfile(userDoc.data());
-      } catch (err) {
-        setAddresses([]);
-        setCartItems([]);
-        setUserProfile(null);
-      }
+    if (!user) {
+      setAddresses([]);
+      setCartItems([]);
+      setUserProfile(null);
       setLoading(false);
-    };
-    fetchData();
-  }, []);
+      return;
+    }
+    setLoading(true);
+    // Real-time listener for addresses
+    const addressesCol = collection(db, "users", user.uid, "addresses");
+    const unsubscribeAddresses = onSnapshot(addressesCol, (snapshot) => {
+      const addrList = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      setAddresses(addrList);
+      if (addrList.length > 0) setSelectedAddress(addrList[0].id);
+    });
+    // One-time fetch for cart items
+    const cartCol = collection(db, "users", user.uid, "cart");
+    getDocs(cartCol).then(cartSnap => {
+      setCartItems(cartSnap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })));
+    });
+    // One-time fetch for user profile
+    getDoc(doc(db, "users", user.uid)).then(userDoc => {
+      setUserProfile(userDoc.data());
+      setLoading(false);
+    });
+    return () => unsubscribeAddresses();
+  }, [user]);
 
   const handleAddressChange = (event) => {
     setSelectedAddress(event.target.value);

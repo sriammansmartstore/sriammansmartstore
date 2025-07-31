@@ -34,9 +34,9 @@
   flex-direction: column;
   gap: 8px;
 }
-.add-to-cart-btn {
+/* .add-to-cart-btn {
   background: linear-gradient(90deg, #e91e63 60%, #43a047 100%);
   color: #fff;
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(233, 30, 99, 0.10);
-}
+} */

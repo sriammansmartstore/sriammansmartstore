@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { Box, Typography, TextField, Button, IconButton } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from "react-router-dom";
 import './UserSettingsPage.css';
 
-import { auth } from "../firebase";
+import { AuthContext } from "../context/AuthContext";
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "firebase/auth";
 
 const UserSettingsPage = () => {
+  const { user } = useContext(AuthContext);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,7 +20,6 @@ const UserSettingsPage = () => {
     setError("");
     setSuccess("");
     setLoading(true);
-    const user = auth.currentUser;
     if (!user || !user.email) {
       setError("No user found or user is not email/password account.");
       setLoading(false);

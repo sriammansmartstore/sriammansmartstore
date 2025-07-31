@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, MenuItem } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { db, auth } from "../firebase";
+import { db } from "../firebase";
+import { AuthContext } from "../context/AuthContext";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
 const genders = ["Male", "Female", "Other"];
@@ -16,6 +17,7 @@ const countryCodes = [
 ];
 
 const UserDataPage = ({ editMode = false, onSave }) => {
+  const { user, userDetails } = useContext(AuthContext);
   const [fullName, setFullName] = useState("");
   const [countryCode, setCountryCode] = useState("+91");
   const [number, setNumber] = useState("");
@@ -26,31 +28,22 @@ const UserDataPage = ({ editMode = false, onSave }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        setFullName(data.fullName || "");
-        setCountryCode(data.countryCode || "+91");
-        setNumber(data.number || "");
-        setGender(data.gender || "");
-        setDob(data.dob || "");
-      }
+    if (!user) {
       setLoading(false);
-    };
-    fetchUserData();
-  }, []);
+      return;
+    }
+    if (userDetails) {
+      setFullName(userDetails.fullName || "");
+      setCountryCode(userDetails.countryCode || "+91");
+      setNumber(userDetails.number || "");
+      setGender(userDetails.gender || "");
+      setDob(userDetails.dob || "");
+    }
+    setLoading(false);
+  }, [user, userDetails]);
 
   const handleSubmit = async () => {
-    const user = auth.currentUser;
     if (!user) return;
-    // Defensive: get latest value from event if possible
     const cc = countryCode;
     await setDoc(doc(db, "users", user.uid), {
       fullName,

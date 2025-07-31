@@ -224,26 +224,12 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           </Box>
         )}
         <Button
-          className="add-to-cart-btn"
           variant="contained"
-          color={showQuantity ? "success" : "primary"}
-          startIcon={!showQuantity ? <AddShoppingCartIcon fontSize="small" /> : null}
-          onClick={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!showQuantity) {
-              setShowQuantity(true);
-              setQuantity(1);
-            } else {
-              onAddToCart(product, quantity);
-              setShowQuantity(false);
-              setQuantity(1);
-            }
-          }}
-          size="small"
-          sx={{ fontSize: '0.78rem', letterSpacing: 0.2, py: 0.7, px: 1.5, minWidth: 0, width: '100%', mt: showQuantity ? 0 : undefined }}
+          className="add-to-cart-btn"
+          onClick={handleAddToCartClick}
+          disabled={product.outOfStock}
         >
-          {showQuantity ? "Confirm" : "Add to Cart"}
+          {showQuantity ? 'Add' : 'Add to Cart'}
         </Button>
       </Box>
 

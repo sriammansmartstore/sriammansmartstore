@@ -155,7 +155,7 @@
   box-sizing: border-box;
 }
 
-/* Add to Cart Button - compact and fits in the card */
+/* Unify Add to Cart Button Styles - use only this definition */
 .add-to-cart-btn {
   width: 100%;
   margin: 0 auto;
@@ -168,6 +168,8 @@
   box-shadow: none !important;
   transition: all 0.2s !important;
   line-height: 1.1 !important;
+  background: linear-gradient(90deg, #388e3c 60%, #43a047 100%) !important;
+  color: #fff !important;
 }
 
 .add-to-cart-btn:hover {

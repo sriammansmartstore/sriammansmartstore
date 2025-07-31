@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
 import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton, Divider } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import UserDataPage from "./UserDataPage";
 import { useNavigate } from "react-router-dom";
-import { auth, db } from "../firebase";
+import { AuthContext } from "../context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 
 const baseLinks = [
@@ -20,36 +22,25 @@ const baseLinks = [
 
 const MorePage = ({ onClose }) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(undefined); // undefined = loading, null = not logged in, object = logged in
+  const { user, userDetails } = useContext(AuthContext);
   const [editOpen, setEditOpen] = useState(false);
   const [profile, setProfile] = useState({ fullName: '', number: '', countryCode: '+91' });
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          setProfile({
-            fullName: data.fullName || '',
-            number: data.number || '',
-            countryCode: data.countryCode || '+91',
-          });
-        } else {
-          setProfile({ fullName: '', number: '', countryCode: '+91' });
-        }
-      } else {
-        setProfile({ fullName: '', number: '', countryCode: '+91' });
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    if (userDetails) {
+      setProfile({
+        fullName: userDetails.fullName || '',
+        number: userDetails.number || '',
+        countryCode: userDetails.countryCode || '+91',
+      });
+    } else {
+      setProfile({ fullName: '', number: '', countryCode: '+91' });
+    }
+  }, [userDetails]);
 
   const handleLogout = async () => {
     try {
-      await auth.signOut();
+      await signOut(auth);
       if (onClose) onClose();
       navigate("/login");
     } catch (error) {
