@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useContext } from "react";
-import { Box, Typography, Grid, Snackbar, Alert, TextField } from "@mui/material";
+import React, { useState, useEffect, useContext, useRef } from "react";
+import { Box, Typography, Grid, Snackbar, Alert, TextField, InputAdornment, IconButton } from "@mui/material";
 import { styled } from "@mui/material/styles";
+import MicIcon from "@mui/icons-material/Mic";
 import './HomePage.css';
 import LocationDetectionWidget from "./LocationDetectionPage";
 import ProductCard from "../components/ProductCard";
@@ -17,7 +18,6 @@ const Banner = styled(Box)(({ theme }) => ({
   textAlign: "center",
 }));
 
-
 const HomePage = () => {
   const [area, setArea] = useState("");
   const [products, setProducts] = useState([]);
@@ -26,6 +26,9 @@ const HomePage = () => {
   const [cart, setCart] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [listening, setListening] = useState(false);
+  const searchInputRef = useRef(null);
+
   // Listen for voice search event or localStorage value
   useEffect(() => {
     // On mount, check if a voice search query exists
@@ -41,8 +44,59 @@ const HomePage = () => {
     window.addEventListener('voice-search', handler);
     return () => window.removeEventListener('voice-search', handler);
   }, []);
+
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  // Voice search handler
+  const handleVoiceSearch = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Voice search is not supported in this browser.');
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setListening(true);
+    recognition.start();
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setListening(false);
+      setSearch(transcript);
+    };
+    recognition.onerror = (event) => {
+      setListening(false);
+      alert('Voice search failed: ' + event.error);
+    };
+    recognition.onend = () => {
+      setListening(false);
+    };
+  };
+
+  // Function to focus search bar (will be called from BottomNavbar)
+  const focusSearchBar = () => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  };
+
+  // Listen for search focus event from BottomNavbar
+  useEffect(() => {
+    const handleSearchFocus = () => {
+      focusSearchBar();
+    };
+    const handleClearSearch = () => {
+      setSearch('');
+    };
+    window.addEventListener('focus-search', handleSearchFocus);
+    window.addEventListener('clear-search', handleClearSearch);
+    return () => {
+      window.removeEventListener('focus-search', handleSearchFocus);
+      window.removeEventListener('clear-search', handleClearSearch);
+    };
+  }, []);
 
   // Example deliverable check
   const isDeliverable = area && typeof area === 'string' && area.toLowerCase().includes("coimbatore");
@@ -150,6 +204,25 @@ const HomePage = () => {
         value={search}
         onChange={e => setSearch(e.target.value)}
         autoComplete="off"
+        inputRef={searchInputRef}
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                onClick={handleVoiceSearch}
+                edge="end"
+                sx={{
+                  color: listening ? '#d32f2f' : '#388e3c',
+                  '&:hover': {
+                    backgroundColor: listening ? 'rgba(211, 47, 47, 0.04)' : 'rgba(56, 142, 60, 0.04)'
+                  }
+                }}
+              >
+                <MicIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
         sx={{ mb: 1 }}
       />
       {/* Only show detected location and deliverable/not text below search bar */}

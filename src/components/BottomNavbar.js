@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { BottomNavigation, BottomNavigationAction } from "@mui/material";
 import HomeIcon from "@mui/icons-material/Home";
 import CategoryIcon from "@mui/icons-material/Category";
-import MicIcon from "@mui/icons-material/Mic";
+import SearchIcon from "@mui/icons-material/Search";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import Badge from "@mui/material/Badge";
@@ -16,37 +16,23 @@ const BottomNavbar = () => {
   const [cartCount, setCartCount] = useState(0);
   const { user } = useContext(AuthContext) || {};
   const navigate = useNavigate();
-  // Voice search state
-  const [listening, setListening] = useState(false);
-  // Voice search handler
-  const handleVoiceSearch = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Voice search is not supported in this browser.');
-      return;
-    }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-IN';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    setListening(true);
-    recognition.start();
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setListening(false);
-      // Store the transcript in localStorage for HomePage to pick up
-      localStorage.setItem('voice_search_query', transcript);
-      navigate('/');
-      // Optionally, trigger a custom event for HomePage to listen
-      window.dispatchEvent(new CustomEvent('voice-search', { detail: transcript }));
-    };
-    recognition.onerror = (event) => {
-      setListening(false);
-      alert('Voice search failed: ' + event.error);
-    };
-    recognition.onend = () => {
-      setListening(false);
-    };
+  // Search handler - focuses the search bar on home page
+  const handleSearch = () => {
+    // Navigate to home page if not already there
+    navigate('/');
+    // Trigger search focus event
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('focus-search'));
+    }, 100);
+  };
+
+  // Home handler - clears search and navigates to home
+  const handleHome = () => {
+    navigate('/');
+    // Trigger clear search event
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('clear-search'));
+    }, 100);
   };
 
   useEffect(() => {
@@ -79,13 +65,19 @@ const BottomNavbar = () => {
         px: 1.5,
       }}
     >
-      <BottomNavigationAction label="Home" icon={<HomeIcon sx={{ color: '#43a047' }} />} onClick={() => navigate("/")} sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
+      <BottomNavigationAction 
+        label="Home" 
+        icon={<HomeIcon sx={{ color: '#43a047' }} />} 
+        onMouseDown={() => window.dispatchEvent(new CustomEvent('clear-search'))}
+        onClick={() => navigate("/")}
+        sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} 
+      />
       <BottomNavigationAction label="Categories" icon={<CategoryIcon sx={{ color: '#ff9800' }} />} onClick={() => navigate("/categories")} sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
       <BottomNavigationAction
-        label={listening ? "Listening..." : "Voice"}
-        icon={<MicIcon sx={{ fontSize: 28, color: listening ? '#d32f2f' : '#388e3c' }} />}
-        onClick={handleVoiceSearch}
-        sx={{ fontFamily: 'Montserrat', fontWeight: 600, color: listening ? '#d32f2f' : '#388e3c' }}
+        label="Search"
+        icon={<SearchIcon sx={{ fontSize: 28, color: '#388e3c' }} />}
+        onClick={handleSearch}
+        sx={{ fontFamily: 'Montserrat', fontWeight: 600, color: '#388e3c' }}
       />
       <BottomNavigationAction label="Wishlist" icon={<FavoriteIcon sx={{ color: '#e91e63' }} />} onClick={() => navigate("/wishlist")} sx={{ fontFamily: 'Montserrat', fontWeight: 600, pr: 2 }} />
       <BottomNavigationAction
