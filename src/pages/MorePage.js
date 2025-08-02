@@ -1,13 +1,24 @@
 import React, { useContext, useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton, Divider } from "@mui/material";
+import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton, Divider, Collapse } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import UserDataPage from "./UserDataPage";
+
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
+
+const policyLinks = [
+  { label: "Terms and Conditions", path: "/terms" },
+  { label: "Privacy Policy", path: "/privacy" },
+  { label: "Refund & Cancellation Policy", path: "/refund-cancellation" },
+  { label: "Shipping Policy", path: "/shipping" },
+  { label: "Return Policy", path: "/return" },
+];
 
 const baseLinks = [
   { label: "Addresses", path: "/addresses" },
@@ -59,6 +70,44 @@ const MorePage = ({ onClose }) => {
     moreLinks = baseLinks.filter(link => link.label !== 'Change Password');
   }
 
+  // Inline DropdownPolicies component to avoid circular import
+  function DropdownPoliciesInline({ onClose, navigate }) {
+    const [open, setOpen] = React.useState(false);
+    const policyLinks = [
+      { label: "Terms and Conditions", path: "/terms" },
+      { label: "Privacy Policy", path: "/privacy" },
+      { label: "Refund & Cancellation Policy", path: "/refund-cancellation" },
+      { label: "Shipping Policy", path: "/shipping" },
+      { label: "Return Policy", path: "/return" },
+    ];
+    return (
+      <>
+        <ListItemButton onClick={() => setOpen((prev) => !prev)} sx={{ pl: 2 }}>
+          <ListItemText primary="Policies" />
+          {open ? <ExpandLess /> : <ExpandMore />}
+        </ListItemButton>
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            {policyLinks.map((link) => (
+              <ListItem key={link.path} disablePadding>
+                <ListItemButton
+                  onClick={() => {
+                    if (onClose) onClose();
+                    navigate(link.path);
+                  }}
+                  sx={{ pl: 4 }}
+                >
+                  <ListItemText primary={link.label} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+          <Divider sx={{ my: 1 }} />
+        </Collapse>
+      </>
+    );
+  }
+
   return (
     <Box sx={{
       height: '100%',
@@ -108,6 +157,8 @@ const MorePage = ({ onClose }) => {
                   </ListItemButton>
                 </ListItem>
               ))}
+              {/* Policy Links Dropdown */}
+              <DropdownPoliciesInline onClose={onClose} navigate={navigate} />
             </List>
           </Box>
           {/* Edit Profile Dialog */}

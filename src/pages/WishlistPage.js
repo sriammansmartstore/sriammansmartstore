@@ -1,169 +1,215 @@
 import React, { useEffect, useState, useContext } from "react";
-import { Box, Typography, Button, Select, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from "@mui/material";
-import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
-import RemoveIcon from '@mui/icons-material/Remove';
-import AddIcon from '@mui/icons-material/Add';
-import './WishlistPage.css';
+import { Box, Typography, IconButton, Fab, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Menu, MenuItem, Avatar, CircularProgress } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
-import { collection, getDocs, doc, deleteDoc, setDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 
 const WishlistPage = () => {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [wishlists, setWishlists] = useState([]);
-  const [selectedWishlistId, setSelectedWishlistId] = useState('general');
-  const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [menuTargetId, setMenuTargetId] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newWishlistName, setNewWishlistName] = useState("");
+  const [renameWishlistName, setRenameWishlistName] = useState("");
+  // Avatar change dialog state
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+  const [avatarTargetId, setAvatarTargetId] = useState(null);
+  const [selectedAvatar, setSelectedAvatar] = useState(null);
 
   useEffect(() => {
     if (!user) return;
+    setLoading(true);
     const fetchWishlists = async () => {
       try {
         const colRef = collection(db, "users", user.uid, "wishlists");
         const snapshot = await getDocs(colRef);
-        const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setWishlists([{ id: 'general', name: 'General Wishlist' }, ...fetched]);
+        setWishlists(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
-        setWishlists([{ id: 'general', name: 'General Wishlist' }]);
+        setWishlists([]);
       }
+      setLoading(false);
     };
     fetchWishlists();
-  }, [user, createDialogOpen]);
+  }, [user, createDialogOpen, renameDialogOpen, deleteDialogOpen]);
 
-  useEffect(() => {
-    if (!user || !selectedWishlistId) return;
-    const fetchItems = async () => {
-      setLoading(true);
-      try {
-        const itemsCol = collection(db, "users", user.uid, "wishlists", selectedWishlistId, "items");
-        const snapshot = await getDocs(itemsCol);
-        setWishlistItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (err) {
-        setWishlistItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchItems();
-  }, [user, selectedWishlistId]);
-
-  const [addingToCartId, setAddingToCartId] = useState(null);
-  const [cartQuantity, setCartQuantity] = useState(1);
-
-  const handleAddToCartClick = (id) => {
-    setAddingToCartId(id);
-    setCartQuantity(1);
+  const handleMenuOpen = (event, id) => {
+    setAnchorEl(event.currentTarget);
+    setMenuTargetId(id);
   };
-
-  const handleConfirmAddToCart = async (item) => {
-    if (!user) return;
-    await setDoc(doc(db, "users", user.uid, "cart", item.id), { ...item, quantity: cartQuantity });
-    setAddingToCartId(null);
-    setCartQuantity(1);
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    // Do NOT clear menuTargetId here; let dialogs manage it
   };
-
-  const handleDelete = async (id) => {
-    if (!user || !selectedWishlistId) return;
-    await deleteDoc(doc(db, "users", user.uid, "wishlists", selectedWishlistId, "items", id));
-    setWishlistItems(items => items.filter(item => item.id !== id));
+  const handleDelete = async () => {
+    if (!user || !menuTargetId) return;
+    await deleteDoc(doc(db, "users", user.uid, "wishlists", menuTargetId));
+    setDeleteDialogOpen(false);
+    setMenuTargetId(null);
   };
-
-  const handleCreateWishlist = async () => {
-    if (!user || !newWishlistName.trim()) return;
-    try {
-      const colRef = collection(db, "users", user.uid, "wishlists");
-      await addDoc(colRef, { name: newWishlistName.trim(), createdAt: new Date().toISOString() });
-      setCreateDialogOpen(false);
-      setNewWishlistName("");
-    } catch (err) {
-      alert("Failed to create wishlist.");
+  const handleRename = async () => {
+    console.log("handleRename called", { user, menuTargetId, renameWishlistName });
+    if (!user || !menuTargetId || !renameWishlistName.trim()) {
+      alert("Missing user, wishlist id, or name!");
+      return;
     }
+    try {
+      await updateDoc(doc(db, "users", user.uid, "wishlists", menuTargetId), { name: renameWishlistName.trim() });
+      setRenameDialogOpen(false);
+      setMenuTargetId(null);
+      setRenameWishlistName("");
+      console.log("Rename successful");
+    } catch (err) {
+      alert("Failed to rename wishlist: " + err.message);
+      console.error("Rename error:", err);
+    }
+  };
+  const handleCreate = async () => {
+    if (!user || !newWishlistName.trim()) return;
+    await addDoc(collection(db, "users", user.uid, "wishlists"), { name: newWishlistName.trim(), createdAt: new Date().toISOString() });
+    setCreateDialogOpen(false);
+    setNewWishlistName("");
   };
 
   return (
-    <Box className="wishlist-root">
-      <Typography variant="h5" className="wishlist-title">Your Wishlists</Typography>
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, mb: 2 }}>
-        {wishlists.map(wl => (
-          <Button
-            key={wl.id}
-            variant={selectedWishlistId === wl.id ? "contained" : "outlined"}
-            color="primary"
-            size="small"
-            sx={{ mb: 1, minWidth: 160, textAlign: 'left', borderRadius: 2, fontWeight: selectedWishlistId === wl.id ? 700 : 500 }}
-            onClick={() => setSelectedWishlistId(wl.id)}
-          >
-            {wl.name || 'Unnamed Wishlist'}
-          </Button>
-        ))}
-        <Button variant="outlined" color="primary" size="small" sx={{ mt: 1, minWidth: 160, borderRadius: 2 }} onClick={() => setCreateDialogOpen(true)}>+ Create New Wishlist</Button>
-      </Box>
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
+    <Box sx={{ px: { xs: 1, md: 3 }, py: 3, maxWidth: 900, mx: 'auto', minHeight: '100vh', backgroundColor: 'background.paper' }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>My Wishlists</Typography>
+      {loading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+          <CircularProgress />
+        </Box>
+      ) : wishlists.length === 0 ? (
+        <Typography color="text.secondary" align="center" sx={{ mt: 8 }}>
+          You have no wishlists yet.
+        </Typography>
+      ) : (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3 }}>
+          {wishlists.map(wl => (
+            <Box key={wl.id} sx={{ p: 2, borderRadius: 2, boxShadow: 1, background: 'white', display: 'flex', alignItems: 'center', cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 3, background: '#f5faff' } }} onClick={() => navigate(`/wishlist/${wl.id}`)}>
+              {/* Avatar with custom icon/gradient/emoji if set */}
+              {wl.avatar ? (
+                <Avatar
+                  sx={{
+                    mr: 2,
+                    fontSize: 28,
+                    bgcolor: wl.avatar.type === 'gradient' ? undefined : '#1976d2',
+                    background: wl.avatar.type === 'gradient' ? wl.avatar.value : undefined,
+                  }}
+                >
+                  {wl.avatar.type === 'icon' || wl.avatar.type === 'emoji' ? wl.avatar.value : ''}
+                </Avatar>
+              ) : (
+                <Avatar sx={{ bgcolor: '#1976d2', mr: 2 }}>{(wl.name || wl.id)[0]?.toUpperCase()}</Avatar>
+              )}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, flex: 1 }}>{wl.name || wl.id}</Typography>
+              <IconButton onClick={e => { e.stopPropagation(); handleMenuOpen(e, wl.id); }}>
+                <MoreVertIcon />
+              </IconButton>
+            </Box>
+          ))}
+        </Box>
+      )}
+      <Fab color="primary" sx={{ position: 'fixed', bottom: 80, right: 24, zIndex: 100 }} onClick={() => setCreateDialogOpen(true)}>
+        <AddIcon />
+      </Fab>
+      {/* Menu for each wishlist */}
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+        <MenuItem onClick={() => { setRenameDialogOpen(true); setRenameWishlistName(wishlists.find(w => w.id === menuTargetId)?.name || ""); handleMenuClose(); }}>Rename</MenuItem>
+        <MenuItem onClick={() => { setAvatarDialogOpen(true); setAvatarTargetId(menuTargetId); handleMenuClose(); }}>Change Avatar</MenuItem>
+        <MenuItem onClick={() => { setDeleteDialogOpen(true); handleMenuClose(); }}>Delete</MenuItem>
+      </Menu>
+      {/* Create Wishlist Dialog */}
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Create New Wishlist</DialogTitle>
         <DialogContent>
-          <TextField label="Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth sx={{ mt: 1 }} />
+          <TextField fullWidth label="Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} variant="outlined" autoFocus sx={{ mt: 2 }} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="primary" onClick={handleCreateWishlist}>Create</Button>
+          <Button variant="contained" onClick={handleCreate} disabled={!newWishlistName.trim()}>Create</Button>
         </DialogActions>
       </Dialog>
-      {selectedWishlistId && (
-        loading ? (
-          <Typography>Loading...</Typography>
-        ) : wishlistItems.length === 0 ? (
-          <Typography>No items in this wishlist.</Typography>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
-            {wishlistItems.map(item => (
-              <Box key={item.id} className="wishlist-item" sx={{ flexWrap: 'wrap', width: '100%' }}>
-                <img src={item.imageUrls?.[0] || item.image} alt={item.name} className="wishlist-item-img" />
-                <Box className="wishlist-item-details">
-                  <Typography variant="h6">{item.name}</Typography>
-                  <Typography variant="body2">Price: ₹{item.sellingPrice || item.price}</Typography>
-                </Box>
-                <Box className="wishlist-item-actions" sx={{ width: '100%' }}>
-                  {addingToCartId === item.id ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', mb: 1, width: '100%', gap: 1 }}>
-                      <IconButton size="medium" sx={{ p: 1, background: '#f5f5f5', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e0e0e0' } }} onClick={() => setCartQuantity(q => Math.max(1, cartQuantity - 1))}>
-                        <RemoveIcon fontSize="medium" />
-                      </IconButton>
-                      <Typography sx={{ mx: 1, minWidth: 32, textAlign: 'center', fontSize: '1.1rem', fontWeight: 700, color: '#388e3c', background: '#f9fff9', borderRadius: 2, px: 2, py: 0.5, boxShadow: 1 }}>{cartQuantity}</Typography>
-                      <IconButton size="medium" sx={{ p: 1, background: '#f5f5f5', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e0e0e0' } }} onClick={() => setCartQuantity(q => cartQuantity + 1)}>
-                        <AddIcon fontSize="medium" />
-                      </IconButton>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        startIcon={<AddShoppingCartIcon />}
-                        sx={{ borderRadius: 2, minHeight: 40, fontSize: '1rem', fontWeight: 700, ml: 2, px: 3, boxShadow: 2, transition: 'background 0.2s' }}
-                        onClick={() => handleConfirmAddToCart(item)}
-                        disabled={cartQuantity < 1}
-                      >
-                        Confirm & Add
-                      </Button>
-                      <Button variant="outlined" color="inherit" size="small" sx={{ ml: 1, borderRadius: 2, fontWeight: 500 }} onClick={() => setAddingToCartId(null)}>Cancel</Button>
-                    </Box>
-                  ) : (
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<AddShoppingCartIcon />}
-                      sx={{ borderRadius: 2, minHeight: 36, fontSize: '0.95rem', fontWeight: 700, width: '100%', transition: 'background 0.2s', mb: 0.5 }}
-                      onClick={() => handleAddToCartClick(item.id)}
-                    >
-                      Add to Cart
-                    </Button>
-                  )}
-                  <Button variant="outlined" color="error" size="small" sx={{ ml: 1 }} onClick={() => handleDelete(item.id)}>Remove</Button>
-                </Box>
+      {/* Rename Dialog */}
+      <Dialog open={renameDialogOpen} onClose={() => { setRenameDialogOpen(false); setMenuTargetId(null); }} fullWidth maxWidth="sm">
+        <DialogTitle>Rename Wishlist</DialogTitle>
+        <DialogContent>
+          <TextField fullWidth label="Wishlist Name" value={renameWishlistName} onChange={e => setRenameWishlistName(e.target.value)} variant="outlined" autoFocus sx={{ mt: 2 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRenameDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleRename} disabled={!renameWishlistName.trim()}>Rename</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Avatar Dialog */}
+      <Dialog open={avatarDialogOpen} onClose={() => { setAvatarDialogOpen(false); setAvatarTargetId(null); setSelectedAvatar(null); }} fullWidth maxWidth="xs">
+        <DialogTitle>Choose an Avatar</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', mt: 1 }}>
+            {[
+              // Emojis
+              { type: 'emoji', value: '😀' }, { type: 'emoji', value: '😎' }, { type: 'emoji', value: '🤩' },
+              { type: 'emoji', value: '🎉' }, { type: 'emoji', value: '🦄' }, { type: 'emoji', value: '🐱' },
+              { type: 'emoji', value: '🐶' }, { type: 'emoji', value: '🍕' }, { type: 'emoji', value: '🍔' },
+              { type: 'emoji', value: '🍦' }, { type: 'emoji', value: '🌟' }, { type: 'emoji', value: '🍀' },
+              // Icons (using emojis for now, can swap to MUI icons if needed)
+              { type: 'icon', value: '❤️' }, { type: 'icon', value: '⭐' }, { type: 'icon', value: '🛒' },
+              { type: 'icon', value: '🎁' }, { type: 'icon', value: '📦' }, { type: 'icon', value: '📝' },
+              // Gradients
+              { type: 'gradient', value: 'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)' },
+              { type: 'gradient', value: 'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)' },
+              { type: 'gradient', value: 'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)' },
+              { type: 'gradient', value: 'linear-gradient(135deg, #fddb92 0%, #d1fdff 100%)' },
+              { type: 'gradient', value: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+              { type: 'gradient', value: 'linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%)' },
+              { type: 'gradient', value: 'linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%)' },
+            ].map((avatar, idx) => (
+              <Box
+                key={idx}
+                sx={{
+                  width: 54, height: 54, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 28, cursor: 'pointer', border: selectedAvatar === JSON.stringify(avatar) ? '3px solid #1976d2' : '2px solid #eee',
+                  background: avatar.type === 'gradient' ? avatar.value : '#fff',
+                  transition: 'border 0.2s',
+                }}
+                onClick={() => setSelectedAvatar(JSON.stringify(avatar))}
+              >
+                {avatar.type !== 'gradient' ? avatar.value : ''}
               </Box>
             ))}
           </Box>
-        )
-      )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setAvatarDialogOpen(false); setAvatarTargetId(null); setSelectedAvatar(null); }}>Cancel</Button>
+          <Button variant="contained" onClick={async () => {
+            if (!user || !avatarTargetId || !selectedAvatar) return;
+            const avatarObj = JSON.parse(selectedAvatar);
+            await updateDoc(doc(db, "users", user.uid, "wishlists", avatarTargetId), { avatar: avatarObj });
+            // Update local wishlists state for live UI update
+            setWishlists(prev => prev.map(wl => wl.id === avatarTargetId ? { ...wl, avatar: avatarObj } : wl));
+            setAvatarDialogOpen(false);
+            setAvatarTargetId(null);
+            setSelectedAvatar(null);
+          }} disabled={!selectedAvatar}>Save</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => { setDeleteDialogOpen(false); setMenuTargetId(null); }} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Wishlist</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this wishlist?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={handleDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

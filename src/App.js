@@ -23,7 +23,8 @@ import Badge from "@mui/material/Badge";
 import Drawer from "@mui/material/Drawer";
 import { db } from "./firebase";
 import { collection, getDocs, onSnapshot } from "firebase/firestore";
-
+import WishlistDetailPage from "./pages/WishlistDetailPage";
+import WishlistReviewPage from "./pages/WishlistReviewPage";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ProductDetailsPage = lazy(() => import("./pages/ProductDetailsPage"));
@@ -127,6 +128,8 @@ function App() {
                 <Route path="/category/:categoryName" element={<CategoryProductsPage />} />
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="/wishlist" element={<WishlistPage />} />
+                <Route path="/wishlist/:wishlistId" element={<WishlistDetailPage />} />
+                <Route path="/wishlist/:wishlistId/review" element={<WishlistReviewPage />} />
                 <Route path="/addresses" element={<AddressesPage />} />
                 <Route path="/settings" element={<UserSettingsPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
@@ -139,6 +142,11 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/userdata" element={<UserDataPage />} />
+                <Route path="/terms" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/TermsAndConditionsPage')))}</Suspense>} />
+                <Route path="/privacy" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/PrivacyPolicyPage')))}</Suspense>} />
+                <Route path="/refund-cancellation" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/RefundAndCancellationPolicyPage')))}</Suspense>} />
+                <Route path="/shipping" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/ShippingPolicyPage')))}</Suspense>} />
+                <Route path="/return" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/ReturnPolicyPage')))}</Suspense>} />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </Suspense>

@@ -4,7 +4,7 @@ import './CheckoutPage.css';
 import { AuthContext } from "../context/AuthContext";
 import { db } from "../firebase";
 import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // orderSummary will be calculated from cartItems
 
@@ -18,6 +18,7 @@ const CheckoutPage = () => {
   const [cartItems, setCartItems] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!user) {
@@ -55,11 +56,25 @@ const CheckoutPage = () => {
   // Helper to get selected address object
   const getSelectedAddressObj = () => addresses.find(addr => addr.id === selectedAddress);
 
-  // Calculate order summary from cartItems
-  const orderSummary = {
-    items: cartItems.map(item => ({ name: item.name, qty: item.quantity || item.qty, price: item.sellingPrice || item.price })),
-    total: cartItems.reduce((sum, item) => sum + (item.sellingPrice || item.price) * (item.quantity || item.qty), 0),
-  };
+  // If coming from wishlist review, use those items instead of cart
+  const wishlistItems = location.state?.source === "wishlist" ? location.state.items : null;
+  const orderSummary = wishlistItems
+    ? {
+        items: wishlistItems.map(item => ({
+          name: item.name,
+          qty: item.quantity || item.qty || 1,
+          price: item.price || item.sellingPrice || 0
+        })),
+        total: wishlistItems.reduce((sum, item) => sum + ((item.price || item.sellingPrice || 0) * (item.quantity || item.qty || 1)), 0),
+      }
+    : {
+        items: cartItems.map(item => ({
+          name: item.name,
+          qty: item.quantity || item.qty || 1,
+          price: item.sellingPrice || item.price || 0
+        })),
+        total: cartItems.reduce((sum, item) => sum + ((item.sellingPrice || item.price || 0) * (item.quantity || item.qty || 1)), 0),
+      };
 
   // Redirect to PaymentOptionsPage with order details
   const handleProceedToPayment = () => {

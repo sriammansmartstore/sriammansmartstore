@@ -76,7 +76,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const handleSelectWishlist = async (wishlistId) => {
     if (!user) return;
     try {
-      await setDoc(doc(db, "users", user.uid, "wishlists", wishlistId, "items", product.id), {
+      await setDoc(doc(db, "users", user.uid, "wishlists", wishlistId, "products", product.id), {
         ...product,
         addedAt: new Date().toISOString(),
       });
@@ -92,7 +92,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
     try {
       const colRef = collection(db, "users", user.uid, "wishlists");
       const docRef = await addDoc(colRef, { name: newWishlistName.trim(), createdAt: new Date().toISOString() });
-      await setDoc(doc(db, "users", user.uid, "wishlists", docRef.id, "items", product.id), {
+      await setDoc(doc(db, "users", user.uid, "wishlists", docRef.id, "products", product.id), {
         ...product,
         addedAt: new Date().toISOString(),
       });
@@ -107,7 +107,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const handleAddToGeneralWishlist = async () => {
     if (!user) return;
     try {
-      await setDoc(doc(db, "users", user.uid, "wishlists", "general", "items", product.id), {
+      await setDoc(doc(db, "users", user.uid, "wishlists", "general", "products", product.id), {
         ...product,
         addedAt: new Date().toISOString(),
       });
