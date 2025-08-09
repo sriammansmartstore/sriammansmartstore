@@ -10,7 +10,7 @@ import './PaymentOptionsPage.css';
 import { getFirestore, collection, addDoc } from "firebase/firestore";
 
 const paymentOptions = [
-  { id: 1, name: "PhonePe Business UPI", icon: <AccountBalanceWalletIcon color="primary" />, type: "phonepe" },
+  { id: 1, name: "Razorpay (UPI, Card, Wallet)", icon: <CreditCardIcon color="primary" />, type: "razorpay" },
   { id: 2, name: "Cash on Delivery", icon: <CurrencyRupeeIcon color="primary" />, type: "cod" },
 ];
 
@@ -57,16 +57,44 @@ const PaymentOptionsPage = () => {
     setLoading(false);
   };
 
-  // PhonePe Business UPI payment handler (demo)
-  const handlePhonePe = async () => {
+  // Razorpay payment handler
+  const handleRazorpay = async () => {
     setLoading(true);
-    // Simulate PhonePe Business payment (real integration requires backend)
-    setTimeout(() => {
-      // Simulate successful payment response
-      saveOrder("PhonePe Business UPI", "Paid", { transactionId: `PHPE-${Date.now()}` });
+    const options = {
+      key: "rzp_test_YourRazorpayKey", // Replace with your Razorpay key
+      amount: orderSummary.total * 100, // Amount in paise
+      currency: "INR",
+      name: "Sri Amman Smart Store",
+      description: "Order Payment",
+      handler: function (response) {
+        saveOrder("Razorpay", "Paid", response);
+        setLoading(false);
+      },
+      prefill: {
+        name: userProfile?.fullName || "",
+        email: userProfile?.email || "",
+        contact: userProfile?.number || ""
+      },
+      theme: { color: "#388e3c" }
+    };
+    const rzp = new window.Razorpay(options);
+    rzp.on('payment.failed', function () {
+      setDialogMsg("Payment failed. Please try again.");
+      setDialogOpen(true);
       setLoading(false);
-    }, 2000);
+    });
+    rzp.open();
   };
+
+  // Load Razorpay script if not present
+  React.useEffect(() => {
+    if (!window.Razorpay) {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   // Cash on Delivery handler
   const handleCOD = async () => {
@@ -74,8 +102,8 @@ const PaymentOptionsPage = () => {
   };
 
   const handlePay = (opt) => {
-    if (opt.type === "phonepe") {
-      handlePhonePe();
+    if (opt.type === "razorpay") {
+      handleRazorpay();
     } else {
       handleCOD();
     }
