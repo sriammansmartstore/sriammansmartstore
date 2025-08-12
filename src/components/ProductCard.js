@@ -122,32 +122,40 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
     <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
       {/* Discount Ribbon */}
       {discount > 0 && (
-        <Box sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          zIndex: 3,
-          width: 70,
-          height: 70,
-          pointerEvents: 'none',
-        }}>
-          <Box sx={{
+        <Box
+          className="product-card-badge-container"
+          sx={{
             position: 'absolute',
-            top: 10,
-            left: -28,
-            width: 120,
-            transform: 'rotate(-45deg)',
-            background: 'linear-gradient(90deg, #d32f2f 60%, #ff5252 100%)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '0.8rem',
-            textAlign: 'center',
-            py: 0.5,
-            boxShadow: 2,
-            letterSpacing: 0.5,
-            borderRadius: 1,
-            userSelect: 'none',
-          }}>
+            top: 0,
+            left: 0,
+            zIndex: 3,
+            width: 56,
+            height: 56,
+            pointerEvents: 'none',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            className="product-card-badge"
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: -18,
+              width: 90,
+              transform: 'rotate(-45deg)',
+              background: 'linear-gradient(90deg, #d32f2f 60%, #ff5252 100%)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              textAlign: 'center',
+              py: 0.5,
+              boxShadow: 2,
+              letterSpacing: 0.5,
+              borderRadius: 1,
+              userSelect: 'none',
+              overflow: 'hidden',
+            }}
+          >
             {discount}% OFF
           </Box>
         </Box>
