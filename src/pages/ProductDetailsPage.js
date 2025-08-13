@@ -51,13 +51,11 @@ const ProductDetailsPage = () => {
     setCartLoading(true);
     try {
       const selectedOption = options[selectedOptionIdx] || options[0];
-      // Use a composite key: productId_unitSize_unit (e.g. 1234_1_kilo)
-      const cartDocId = `${product.id}_${selectedOption.unitSize}_${selectedOption.unit}`;
-      await setDoc(doc(db, "users", user.uid, "cart", cartDocId), {
+      // Use addDoc for unique cart item
+      await addDoc(collection(db, "users", user.uid, "cart"), {
         ...product,
         ...selectedOption,
         quantity,
-        cartDocId, // for reference
         addedAt: new Date().toISOString(),
       });
       setCartAdded(true);

@@ -13,27 +13,39 @@ const CartPage = () => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Move fetchCart outside useEffect so it can be reused
+  const fetchCart = async () => {
     if (!user) return;
-    const fetchCart = async () => {
-      try {
-        const cartRef = collection(db, "users", user.uid, "cart");
-        const snapshot = await getDocs(cartRef);
-        setCartItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (err) {
-        setCartItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      const cartRef = collection(db, "users", user.uid, "cart");
+      const snapshot = await getDocs(cartRef);
+      setCartItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) {
+      setCartItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchCart();
   }, [user]);
 
 
   const handleDelete = async (id) => {
-    if (!user) return;
-    await deleteDoc(doc(db, "users", user.uid, "cart", id));
-    setCartItems(items => items.filter(item => item.id !== id));
+    console.log('Delete button clicked for id:', id);
+    if (!user) {
+      console.log('No user found, aborting delete.');
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "cart", id));
+      console.log('Deleted from Firestore:', id);
+      await fetchCart();
+      console.log('Refetched cart after delete.');
+    } catch (err) {
+      console.error('Error deleting item from Firestore:', err);
+    }
   };
 
   const handleQuantityChange = async (id, newQty) => {
@@ -44,6 +56,19 @@ const CartPage = () => {
   };
 
   const total = cartItems.reduce((sum, item) => sum + (item.sellingPrice || item.price) * (item.quantity || item.qty), 0);
+  if (!user) {
+    return (
+      <Box className="cart-root" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
+        <Typography variant="h5" className="cart-title">Your Cart</Typography>
+        <Typography variant="body1" sx={{ mt: 4, mb: 2, color: '#d32f2f', fontWeight: 600, textAlign: 'center' }}>
+          Please log in to use the cart.
+        </Typography>
+        <Button variant="contained" color="primary" sx={{ fontWeight: 700, fontSize: '1.08rem', borderRadius: 8, px: 4, py: 1 }} href="/login">
+          Log In
+        </Button>
+      </Box>
+    );
+  }
   return (
     <Box className="cart-root">
       <Typography variant="h5" className="cart-title">Your Cart</Typography>
@@ -51,34 +76,41 @@ const CartPage = () => {
         <Typography>Loading...</Typography>
       ) : cartItems.length === 0 ? (
         <Typography>No items in cart.</Typography>
-      ) : cartItems.map(item => {
-        const qty = item.quantity || item.qty || 1;
-        const pricePerUnit = item.sellingPrice || item.price;
-        const itemTotal = pricePerUnit * qty;
-        return (
-          <Box key={item.id} className="cart-item">
-            <img src={item.imageUrls?.[0] || item.image} alt={item.name} className="cart-item-img" />
-            <Box className="cart-item-details">
-              <Typography variant="h6">{item.name}</Typography>
-              <Box display="flex" alignItems="center" gap={1}>
-                <IconButton size="small" color="primary" onClick={() => handleQuantityChange(item.id, qty - 1)} disabled={qty <= 1} sx={{ border: '1px solid #ccc', background: '#f5f5f5' }}>
-                  <RemoveIcon />
-                </IconButton>
-                <Typography variant="body2" sx={{ minWidth: 24, textAlign: 'center', fontWeight: 500 }}>{qty}</Typography>
-                <IconButton size="small" color="primary" onClick={() => handleQuantityChange(item.id, qty + 1)} sx={{ border: '1px solid #ccc', background: '#f5f5f5' }}>
-                  <AddIcon />
-                </IconButton>
+      ) : (
+        <Box>
+          {cartItems.map((item, index) => {
+            const qty = item.quantity || item.qty || 1;
+            const pricePerUnit = item.sellingPrice || item.price;
+            const itemTotal = pricePerUnit * qty;
+            return (
+              <Box key={`${item.id}-${index}`} className="cart-item-card">
+                <img src={item.imageUrls?.[0] || item.image} alt={item.name} className="cart-item-img" />
+                <Box className="cart-item-details">
+                  <Typography variant="subtitle1" className="cart-item-name">{item.name}</Typography>
+                  <Typography variant="body2" className="cart-item-unit">{item.unitSize} {item.unit && item.unit.toUpperCase()}</Typography>
+                  <Box className="cart-qty-row">
+                    <IconButton size="small" color="primary" onClick={() => handleQuantityChange(item.id, qty - 1)} disabled={qty <= 1} className="cart-qty-btn">
+                      <RemoveIcon />
+                    </IconButton>
+                    <Typography variant="body2" className="cart-qty-val">{qty}</Typography>
+                    <IconButton size="small" color="primary" onClick={() => handleQuantityChange(item.id, qty + 1)} className="cart-qty-btn">
+                      <AddIcon />
+                    </IconButton>
+                  </Box>
+                  <Typography variant="body2" className="cart-item-price">₹{pricePerUnit} x {qty} = <b>₹{itemTotal}</b></Typography>
+                </Box>
+                <Box className="cart-item-actions">
+                  <IconButton color="error" className="cart-delete-btn" onClick={e => { e.preventDefault(); e.stopPropagation(); handleDelete(item.id); }}>
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
               </Box>
-              <Typography variant="body2">Price: ₹{pricePerUnit} x {qty} = <b>₹{itemTotal}</b></Typography>
-            </Box>
-            <Box className="cart-item-actions">
-              <IconButton color="error" onClick={() => handleDelete(item.id)}><DeleteIcon /></IconButton>
-            </Box>
-          </Box>
-        );
-      })}
+            );
+          })}
+        </Box>
+      )}
       <Box className="cart-summary">
-        <Typography variant="h6">Total: ₹{total}</Typography>
+        <Typography variant="h6" className="cart-total">Total: ₹{total}</Typography>
         <Button variant="contained" className="checkout-btn" href="/checkout">Checkout</Button>
       </Box>
     </Box>

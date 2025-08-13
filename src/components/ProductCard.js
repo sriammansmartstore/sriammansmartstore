@@ -53,15 +53,31 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
     fetchWishlists();
   }, [user, wishlistDialogOpen]);
 
-  const handleAddToCartClick = (e) => {
+  const handleAddToCartClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!user) {
+      alert("Please login to add to cart.");
+      return;
+    }
     if (!showQuantity) {
       setShowQuantity(true);
     } else {
-      onAddToCart(product, quantity);
-      setShowQuantity(false);
-      setQuantity(1);
+      try {
+        // Use addDoc for unique cart item
+        const optionToAdd = getMiddleOption(product.options) || product.options?.[0] || {};
+        await addDoc(collection(db, "users", user.uid, "cart"), {
+          ...product,
+          ...optionToAdd,
+          quantity,
+          addedAt: new Date().toISOString(),
+        });
+        setShowQuantity(false);
+        setQuantity(1);
+        if (onAddToCart) onAddToCart(product, quantity);
+      } catch (err) {
+        alert("Failed to add to cart.");
+      }
     }
   };
 
