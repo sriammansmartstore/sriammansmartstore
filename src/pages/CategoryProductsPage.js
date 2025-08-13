@@ -36,25 +36,7 @@ const CategoryProductsPage = () => {
     fetchProducts();
   }, [decodedCategoryName]);
 
-  const handleAddToCart = async (product, quantity) => {
-    if (!user) return alert("Please login to add to cart.");
-    try {
-      await setDoc(doc(db, "users", user.uid, "cart", product.id), {
-        ...product,
-        quantity,
-      });
-      setCart(prev => {
-        const exists = prev.find(item => item.id === product.id);
-        if (exists) {
-          return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item);
-        }
-        return [...prev, { ...product, quantity }];
-      });
-      setSnackbarOpen(true);
-    } catch (err) {
-      alert("Failed to add to cart.");
-    }
-  };
+  // ...existing code...
 
   const handleAddToWishlist = async (product) => {
     if (!user) return alert("Please login to add to wishlist.");
@@ -86,7 +68,6 @@ const CategoryProductsPage = () => {
               sx={{ display: "flex", flexBasis: "45%", maxWidth: "45%", flexGrow: 0 }}>
               <ProductCard 
                 product={product} 
-                onAddToCart={handleAddToCart}
                 onAddToWishlist={handleAddToWishlist}
               />
             </Grid>

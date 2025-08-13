@@ -161,26 +161,6 @@ const HomePage = () => {
 
   const filteredProducts = getFilteredProducts();
 
-  const handleAddToCart = async (product, quantity) => {
-    if (!user) return alert("Please login to add to cart.");
-    try {
-      await setDoc(doc(db, "users", user.uid, "cart", product.id), {
-        ...product,
-        quantity,
-      });
-      setCart(prev => {
-        const exists = prev.find(item => item.id === product.id);
-        if (exists) {
-          return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item);
-        }
-        return [...prev, { ...product, quantity }];
-      });
-      setSnackbarOpen(true);
-    } catch (err) {
-      alert("Failed to add to cart.");
-    }
-  };
-
   const handleAddToWishlist = async (product) => {
     if (!user) return alert("Please login to add to wishlist.");
     try {
@@ -192,6 +172,8 @@ const HomePage = () => {
       alert("Failed to add to wishlist.");
     }
   };
+
+  // ...existing code...
 
   return (
     <Box className="home-root">
@@ -253,7 +235,6 @@ const HomePage = () => {
               }}>
               <ProductCard
                 product={product}
-                onAddToCart={handleAddToCart}
                 onAddToWishlist={handleAddToWishlist}
               />
             </Grid>

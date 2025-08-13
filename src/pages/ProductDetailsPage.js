@@ -107,7 +107,12 @@ const ProductDetailsPage = () => {
     if (!user || !newWishlistName.trim()) return;
     try {
       const colRef = collection(db, "users", user.uid, "wishlists");
-      const docRef = await addDoc(colRef, { name: newWishlistName.trim(), createdAt: new Date().toISOString() });
+      // Add avatar for new wishlists (optional, can customize)
+      const docRef = await addDoc(colRef, {
+        name: newWishlistName.trim(),
+        createdAt: new Date().toISOString(),
+        avatar: { type: "icon", value: "⭐" }
+      });
       await setDoc(doc(db, "users", user.uid, "wishlists", docRef.id, "products", product.id), {
         ...product,
         addedAt: new Date().toISOString(),
@@ -122,17 +127,26 @@ const ProductDetailsPage = () => {
   };
 
   const handleAddToGeneralWishlist = async () => {
+    console.log('Add to General Wishlist button clicked');
     if (!user) return;
     try {
+      const generalWishlistRef = doc(db, "users", user.uid, "wishlists", "general");
+      await setDoc(generalWishlistRef, {
+        name: "General",
+        createdAt: new Date().toISOString(),
+        avatar: { type: "icon", value: "⭐" }
+      }, { merge: true });
+      console.log('General wishlist created or updated:', generalWishlistRef.path);
       await setDoc(doc(db, "users", user.uid, "wishlists", "general", "products", product.id), {
         ...product,
         addedAt: new Date().toISOString(),
       });
+      console.log('Product added to General wishlist:', product.id);
       setWishlistDialogOpen(false);
       setWishlistAdded(true);
       setTimeout(() => setWishlistAdded(false), 1500);
     } catch (err) {
-      alert("Failed to add to general wishlist.");
+      alert("Failed to add to general wishlist. " + (err?.message || ""));
     }
   };
 
@@ -245,6 +259,7 @@ const ProductDetailsPage = () => {
 
           {/* Wishlist Dialog like ProductCard */}
           <Dialog open={wishlistDialogOpen} onClose={() => { setWishlistDialogOpen(false); setSelectingWishlist(false); setNewWishlistName(""); }} maxWidth="xs" fullWidth>
+            {console.log('Wishlist Dialog rendered, wishlists:', wishlists, 'selectingWishlist:', selectingWishlist)}
             <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.2rem', pb: 1 }}>Select Wishlist</DialogTitle>
             <DialogContent sx={{ px: 2, py: 1 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
