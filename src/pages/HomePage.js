@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useRef } from "react";
 import { Box, Typography, Grid, Snackbar, Alert, TextField, InputAdornment, IconButton } from "@mui/material";
 import { styled } from "@mui/material/styles";
+import BannerSlideshow from "../components/BannerSlideshow";
 import MicIcon from "@mui/icons-material/Mic";
 import './HomePage.css';
 import LocationDetectionWidget from "./LocationDetectionPage";
@@ -177,6 +178,7 @@ const HomePage = () => {
 
   return (
     <Box className="home-root">
+     
       <TextField
         className="search-bar"
         label="Search products"
@@ -216,14 +218,11 @@ const HomePage = () => {
           </Typography>
         </Box>
       )}
-
-      <Typography className="section-title" variant="h6">All Products</Typography>
-
+ <BannerSlideshow />
+     
       {loading ? (
         <Typography>Loading products...</Typography>
-      ) : filteredProducts.length === 0 ? (
-        <Typography>No products found.</Typography>
-      ) : (
+      )  : (
         <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
           {filteredProducts.map((product) => (
             <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id}

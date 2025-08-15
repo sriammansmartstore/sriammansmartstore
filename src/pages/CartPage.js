@@ -19,7 +19,9 @@ const CartPage = () => {
     try {
       const cartRef = collection(db, "users", user.uid, "cart");
       const snapshot = await getDocs(cartRef);
-      setCartItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  console.log('Fetched cart items:', items.map(i => ({ id: i.id, productId: i.productId, name: i.name, quantity: i.quantity, unit: i.unit, unitSize: i.unitSize })));
+      setCartItems(items);
     } catch (err) {
       setCartItems([]);
     } finally {
@@ -39,7 +41,9 @@ const CartPage = () => {
       return;
     }
     try {
-      await deleteDoc(doc(db, "users", user.uid, "cart", id));
+      const docRef = doc(db, "users", user.uid, "cart", id);
+      console.log('Attempting to delete docRef:', docRef.path);
+      await deleteDoc(docRef);
       console.log('Deleted from Firestore:', id);
       await fetchCart();
       console.log('Refetched cart after delete.');
@@ -49,10 +53,13 @@ const CartPage = () => {
   };
 
   const handleQuantityChange = async (id, newQty) => {
-    if (!user || newQty < 1) return;
-    const itemRef = doc(db, "users", user.uid, "cart", id);
-    await updateDoc(itemRef, { quantity: newQty });
-    setCartItems(items => items.map(item => item.id === id ? { ...item, quantity: newQty } : item));
+  if (!user || newQty < 1) return;
+  // Find the cart item by id
+  const item = cartItems.find(item => item.id === id);
+  if (!item) return;
+  const itemRef = doc(db, "users", user.uid, "cart", id);
+  await updateDoc(itemRef, { quantity: newQty });
+  setCartItems(items => items.map(i => i.id === id ? { ...i, quantity: newQty } : i));
   };
 
   const total = cartItems.reduce((sum, item) => sum + (item.sellingPrice || item.price) * (item.quantity || item.qty), 0);

@@ -4,12 +4,15 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, TextField
 } from "@mui/material";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import RemoveIcon from '@mui/icons-material/Remove';
 import AddIcon from '@mui/icons-material/Add';
 import { Link } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
+import { updateDoc } from "firebase/firestore";
+import { query, where } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import "./../pages/HomePage.css"; // Ensure the CSS is applied
 
@@ -27,6 +30,8 @@ const getDiscount = (mrp, sellingPrice) => {
 };
 
 const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
+  const [alreadyWishlistedName, setAlreadyWishlistedName] = useState("");
+  const [isWishlisted, setIsWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [showQuantity, setShowQuantity] = useState(false);
   const [wishlistDialogOpen, setWishlistDialogOpen] = useState(false);
@@ -34,24 +39,50 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const [newWishlistName, setNewWishlistName] = useState("");
   const [selectingWishlist, setSelectingWishlist] = useState(false);
   // Pick the middle option for display if available
-  const option = getMiddleOption(product.options) || product.options?.[0] || {};
+  const hasMultipleOptions = Array.isArray(product.options) && product.options.length > 1;
+  const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
+  const option = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
   const discount = getDiscount(option.mrp, option.sellingPrice);
   const { user } = useContext(AuthContext);
 
   useEffect(() => {
     const fetchWishlists = async () => {
-      if (!user) return setWishlists([]);
+      if (!user) {
+        setWishlists([]);
+        setIsWishlisted(false);
+        setAlreadyWishlistedName("");
+        return;
+      }
       try {
         const colRef = collection(db, "users", user.uid, "wishlists");
         const snapshot = await getDocs(colRef);
         const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setWishlists(fetched);
+        // Check if product is in any wishlist
+        let found = false;
+        let foundName = "";
+        for (const wl of snapshot.docs) {
+          const prodRef = collection(db, "users", user.uid, "wishlists", wl.id, "products");
+          const prodSnap = await getDocs(prodRef);
+          if (prodSnap.docs.some(d => d.id === product.id)) {
+            found = true;
+            foundName = wl.data().name || wl.id;
+            break;
+          }
+        }
+        setIsWishlisted(found);
+        setAlreadyWishlistedName(found ? foundName : "");
       } catch (err) {
         setWishlists([]);
+        setIsWishlisted(false);
+        setAlreadyWishlistedName("");
       }
     };
     fetchWishlists();
-  }, [user, wishlistDialogOpen]);
+  }, [user, wishlistDialogOpen, product.id]);
+
+  const [showOptionsDialog, setShowOptionsDialog] = useState(false);
+  const [addQuantity, setAddQuantity] = useState(1);
 
   const handleAddToCartClick = async (e) => {
     e.preventDefault();
@@ -60,24 +91,63 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       alert("Please login to add to cart.");
       return;
     }
-    if (!showQuantity) {
-      setShowQuantity(true);
-    } else {
-      try {
-        // Use addDoc for unique cart item
-        const optionToAdd = getMiddleOption(product.options) || product.options?.[0] || {};
-        await addDoc(collection(db, "users", user.uid, "cart"), {
-          ...product,
+    if (hasMultipleOptions) {
+      setShowOptionsDialog(true);
+      return;
+    }
+    setShowQuantity(true);
+  };
+
+  const updateCartQuantity = async (newQuantity) => {
+    try {
+      const optionToAdd = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
+      const cartRef = collection(db, "users", user.uid, "cart");
+      console.log('[Cart] Attempting to update/add:', {
+        productId: product.id,
+        option: optionToAdd,
+        newQuantity,
+        userId: user.uid
+      });
+      // Find existing cart item for this product and option
+      const q = query(
+        cartRef,
+        where('productId', '==', product.id),
+        where('unit', '==', optionToAdd.unit),
+        where('unitSize', '==', optionToAdd.unitSize)
+      );
+      const cartSnap = await getDocs(q);
+      console.log('[Cart] Query result:', cartSnap.docs.map(d => ({ docId: d.id, data: d.data() })));
+      if (!cartSnap.empty) {
+        // Update existing cart item
+        const cartDoc = cartSnap.docs[0];
+        console.log('[Cart] Updating existing cart doc:', cartDoc.id, cartDoc.data());
+        await updateDoc(cartDoc.ref, { quantity: newQuantity, addedAt: new Date().toISOString() });
+        console.log('[Cart] Updated doc:', cartDoc.id, 'with quantity:', newQuantity);
+      } else {
+        // Add new cart item
+        // Remove any 'id' field from product before adding to cart
+        const { id, ...productWithoutId } = product;
+        console.log('[Cart] Adding new cart item:', {
+          productId: product.id,
+          ...productWithoutId,
           ...optionToAdd,
-          quantity,
+          quantity: newQuantity,
           addedAt: new Date().toISOString(),
         });
-        setShowQuantity(false);
-        setQuantity(1);
-        if (onAddToCart) onAddToCart(product, quantity);
-      } catch (err) {
-        alert("Failed to add to cart.");
+        const addedDoc = await addDoc(cartRef, {
+          productId: product.id,
+          ...productWithoutId,
+          ...optionToAdd,
+          quantity: newQuantity,
+          addedAt: new Date().toISOString(),
+        });
+        console.log('[Cart] Added new doc with ID:', addedDoc.id);
       }
+      setAddQuantity(newQuantity);
+      if (onAddToCart) onAddToCart(product, newQuantity);
+    } catch (err) {
+      console.error('Cart update error:', err);
+      alert("Failed to update cart quantity.");
     }
   };
 
@@ -85,6 +155,10 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) return alert("Please login to use wishlists.");
+    if (isWishlisted && alreadyWishlistedName) {
+      alert(`Product already in wishlist: ${alreadyWishlistedName}`);
+      return;
+    }
     setWishlistDialogOpen(true);
     setSelectingWishlist(true);
   };
@@ -149,7 +223,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   };
 
   return (
-    <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
+    <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'hidden', maxWidth: 180, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
       {/* Discount Ribbon */}
       {discount > 0 && (
         <Box
@@ -193,11 +267,12 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       {/* Wishlist Icon */}
       <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
         <IconButton
-          color="secondary"
           onClick={handleWishlistIconClick}
           sx={{ p: 0.5, background: '#fff', boxShadow: 1, borderRadius: '50%' }}
         >
-          <FavoriteBorderIcon fontSize="small" />
+          {isWishlisted
+            ? <FavoriteIcon fontSize="small" sx={{ color: '#d32f2f' }} />
+            : <FavoriteBorderIcon fontSize="small" sx={{ color: '#d32f2f' }} />}
         </IconButton>
       </Box>
       <Link to={`/product/${product.category}/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' }}>
@@ -206,7 +281,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
             component="img"
             image={product.imageUrls?.[0] || "https://via.placeholder.com/180"}
             alt={product.name}
-            sx={{ objectFit: "contain", width: '100%', height: 120, maxHeight: 140, background: '#f8f8f8' }}
+            sx={{ objectFit: "contain", width: '100%', height: 120, maxHeight: 140, background: '#f8f8f8', maxWidth: 160 }}
           />
         </Box>
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
@@ -239,36 +314,75 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       </Link>
       {/* Add to Cart Section */}
       <Box className="add-to-cart-container" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 40, p: 0, m: 0, mt: 0, gap: 0 }}>
-        {showQuantity && (
+        {showQuantity && !hasMultipleOptions && (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0 }}>
-            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={e => {
+            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={async e => {
               e.stopPropagation();
-              if (quantity <= 1) {
+              if (addQuantity <= 1) {
                 setShowQuantity(false);
-                setQuantity(1);
+                setAddQuantity(1);
               } else {
-                setQuantity(q => q - 1);
+                const newQty = addQuantity - 1;
+                setAddQuantity(newQty);
+                await updateCartQuantity(newQty);
               }
             }}>
               <RemoveIcon fontSize="small" />
             </IconButton>
-            <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{quantity}</Typography>
-            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={e => {
+            <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{addQuantity}</Typography>
+            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={async e => {
               e.stopPropagation();
-              setQuantity(q => q + 1);
+              const newQty = addQuantity + 1;
+              setAddQuantity(newQty);
+              await updateCartQuantity(newQty);
             }}>
               <AddIcon fontSize="small" />
             </IconButton>
           </Box>
         )}
-        <Button
-          variant="contained"
-          className="add-to-cart-btn"
-          onClick={handleAddToCartClick}
-          disabled={product.outOfStock}
-        >
-          {showQuantity ? 'Add' : 'Add to Cart'}
-        </Button>
+        {!showQuantity && (
+          <Button
+            variant="contained"
+            className="add-to-cart-btn"
+            onClick={handleAddToCartClick}
+            disabled={product.outOfStock}
+          >
+            {hasMultipleOptions ? 'Choose Options' : 'Add to Cart'}
+          </Button>
+        )}
+      {/* Options Dialog for products with multiple options */}
+      <Dialog open={showOptionsDialog} onClose={() => setShowOptionsDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', pb: 1 }}>Choose Option</DialogTitle>
+        <DialogContent sx={{ px: 2, py: 1 }}>
+          {Array.isArray(product.options) && product.options.length > 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {product.options.map((opt, idx) => (
+                <Box key={idx} sx={{ border: selectedOptionIdx === idx ? '2px solid #388e3c' : '1px solid #eee', borderRadius: 2, p: 1, cursor: 'pointer', boxShadow: selectedOptionIdx === idx ? 2 : 0, bgcolor: selectedOptionIdx === idx ? '#e3f2fd' : '#fff' }} onClick={() => setSelectedOptionIdx(idx)}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{opt.unitSize} {opt.unit} - ₹{opt.sellingPrice}</Typography>
+                  {opt.mrp && opt.mrp > opt.sellingPrice && (
+                    <Typography sx={{ textDecoration: 'line-through', color: '#888', fontWeight: 500, fontSize: '0.95rem' }}>MRP: ₹{opt.mrp}</Typography>
+                  )}
+                  <Typography sx={{ fontSize: '0.92rem', color: '#388e3c', fontWeight: 500 }}>Special Price: ₹{opt.specialPrice}</Typography>
+                  <Typography sx={{ fontSize: '0.92rem', color: '#888' }}>Available: {opt.quantity}</Typography>
+                </Box>
+              ))}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 1, mt: 1 }}>
+                <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={() => setAddQuantity(q => Math.max(1, q - 1))}>
+                  <RemoveIcon fontSize="small" />
+                </IconButton>
+                <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{addQuantity}</Typography>
+                <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={() => setAddQuantity(q => q + 1)}>
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              <Button variant="contained" color="primary" fullWidth sx={{ borderRadius: 2, mt: 1 }} disabled>Add</Button>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
+          <Button onClick={() => setShowOptionsDialog(false)} color="inherit" sx={{ borderRadius: 2 }}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
       </Box>
 
       {/* Wishlist Dialog */}

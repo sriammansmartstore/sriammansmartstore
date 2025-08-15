@@ -3,15 +3,19 @@ import './ProductDetailsPage.css';
 import { useParams } from "react-router-dom";
 import { Box, Typography, Card, CardMedia, CardContent, Button, IconButton, Divider, Rating, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { getDiscount } from "../utils/productUtils";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 import { doc, getDoc, setDoc, collection, addDoc, getDocs, orderBy, query } from "firebase/firestore";
+import { updateDoc, where } from "firebase/firestore";
 import ProductCard from "../components/ProductCard.js"; // Explicit extension for compatibility
 
 const ProductDetailsPage = () => {
+  const [alreadyWishlistedName, setAlreadyWishlistedName] = useState("");
+  const [isWishlisted, setIsWishlisted] = useState(false);
   const { category, id } = useParams();
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -51,13 +55,53 @@ const ProductDetailsPage = () => {
     setCartLoading(true);
     try {
       const selectedOption = options[selectedOptionIdx] || options[0];
-      // Use addDoc for unique cart item
-      await addDoc(collection(db, "users", user.uid, "cart"), {
-        ...product,
-        ...selectedOption,
+      const cartRef = collection(db, "users", user.uid, "cart");
+      console.log('[Cart] Attempting to update/add:', {
+        productId: product.id,
+        option: selectedOption,
         quantity,
-        addedAt: new Date().toISOString(),
+        userId: user.uid
       });
+      // Find existing cart item for this product and option
+      if (!selectedOption.unit || !selectedOption.unitSize) {
+        alert("Product option missing unit/unitSize. Cannot add to cart.");
+        setCartLoading(false);
+        return;
+      }
+      const q = query(
+        cartRef,
+        where('productId', '==', product.id),
+        where('unit', '==', selectedOption.unit),
+        where('unitSize', '==', selectedOption.unitSize)
+      );
+      const cartSnap = await getDocs(q);
+      console.log('[Cart] Query result:', cartSnap.docs.map(d => ({ docId: d.id, data: d.data() })));
+      if (!cartSnap.empty) {
+        // Update existing cart item
+        const cartDoc = cartSnap.docs[0];
+        console.log('[Cart] Updating existing cart doc:', cartDoc.id, cartDoc.data());
+        await updateDoc(cartDoc.ref, { quantity, addedAt: new Date().toISOString() });
+        console.log('[Cart] Updated doc:', cartDoc.id, 'with quantity:', quantity);
+      } else {
+        // Add new cart item
+        // Remove any 'id' field from product before adding to cart
+        const { id, ...productWithoutId } = product;
+        console.log('[Cart] Adding new cart item:', {
+          productId: product.id,
+          ...productWithoutId,
+          ...selectedOption,
+          quantity,
+          addedAt: new Date().toISOString(),
+        });
+        const addedDoc = await addDoc(cartRef, {
+          productId: product.id,
+          ...productWithoutId,
+          ...selectedOption,
+          quantity,
+          addedAt: new Date().toISOString(),
+        });
+        console.log('[Cart] Added new doc with ID:', addedDoc.id);
+      }
       setCartAdded(true);
       setTimeout(() => setCartAdded(false), 1500);
     } catch (err) {
@@ -79,11 +123,45 @@ const ProductDetailsPage = () => {
     }
   };
   useEffect(() => { fetchWishlists(); }, [user, wishlistDialogOpen]);
+  useEffect(() => {
+    const checkWishlisted = async () => {
+      if (!user || !product?.id) {
+        setIsWishlisted(false);
+        setAlreadyWishlistedName("");
+        return;
+      }
+      try {
+        const colRef = collection(db, "users", user.uid, "wishlists");
+        const snapshot = await getDocs(colRef);
+        let found = false;
+        let foundName = "";
+        for (const wl of snapshot.docs) {
+          const prodRef = collection(db, "users", user.uid, "wishlists", wl.id, "products");
+          const prodSnap = await getDocs(prodRef);
+          if (prodSnap.docs.some(d => d.id === product.id)) {
+            found = true;
+            foundName = wl.data().name || wl.id;
+            break;
+          }
+        }
+        setIsWishlisted(found);
+        setAlreadyWishlistedName(found ? foundName : "");
+      } catch {
+        setIsWishlisted(false);
+        setAlreadyWishlistedName("");
+      }
+    };
+    checkWishlisted();
+  }, [user, product?.id, wishlistDialogOpen]);
 
   const handleWishlistIconClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) return alert("Please login to use wishlists.");
+    if (isWishlisted && alreadyWishlistedName) {
+      alert(`Product already in wishlist: ${alreadyWishlistedName}`);
+      return;
+    }
     setWishlistDialogOpen(true);
     setSelectingWishlist(true);
   };
@@ -249,12 +327,13 @@ const ProductDetailsPage = () => {
           </Box>
           {/* Wishlist button at top right */}
           <IconButton
-            color={wishlistAdded ? "error" : "secondary"}
             sx={{ position: 'absolute', top: 12, right: 12, bgcolor: '#fff', boxShadow: 2, zIndex: 2 }}
             onClick={handleWishlistIconClick}
             disabled={wishlistLoading}
           >
-            <FavoriteBorderIcon />
+            {isWishlisted || wishlistAdded
+              ? <FavoriteIcon sx={{ color: '#d32f2f' }} />
+              : <FavoriteBorderIcon sx={{ color: '#d32f2f' }} />}
           </IconButton>
 
           {/* Wishlist Dialog like ProductCard */}

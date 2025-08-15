@@ -19,7 +19,7 @@ const LocationDetectionWidget = ({ onLocationDetected }) => {
         async pos => {
           const { latitude, longitude } = pos.coords;
           try {
-            // Use Nominatim OpenStreetMap reverse geocoding API
+            // Use Nominatim OpenStreetMap reverse geocoding API directly
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`, {
               headers: { 'Accept': 'application/json' }
             });
@@ -29,7 +29,6 @@ const LocationDetectionWidget = ({ onLocationDetected }) => {
               data.address?.city ||
               data.address?.town ||
               data.address?.village ||
-              data.address?.hamlet ||
               data.address?.county ||
               data.address?.state ||
               data.address?.suburb ||
@@ -59,7 +58,6 @@ const LocationDetectionWidget = ({ onLocationDetected }) => {
       setError("Geolocation not supported.");
       setLoading(false);
     }
-    // eslint-disable-next-line
   }, []);
 
   return (

@@ -65,6 +65,15 @@ const theme = createTheme({
 
 
 function App() {
+  // Request location permission on app startup
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => {},
+        () => {}
+      );
+    }
+  }, []);
   const [nav, setNav] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, IconButton, CircularProgress, Button, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ProductCard from "../components/ProductCard";
 import { db } from "../firebase";
@@ -8,6 +9,17 @@ import { AuthContext } from "../context/AuthContext";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 
 const WishlistDetailPage = () => {
+  const handleDeleteProduct = async (productId) => {
+    if (!user || !wishlistId || !productId) return;
+    try {
+      await import("firebase/firestore").then(({ doc, deleteDoc }) =>
+        deleteDoc(doc(db, "users", user.uid, "wishlists", wishlistId, "products", productId))
+      );
+      setProducts(products => products.filter(p => p.id !== productId));
+    } catch (err) {
+      alert("Failed to remove product from wishlist.");
+    }
+  };
   const { wishlistId } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -59,8 +71,11 @@ const WishlistDetailPage = () => {
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3 }}>
             {products.map(product => (
-              <Box key={product.id} sx={{ p: 2, borderRadius: 3, boxShadow: 3, background: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 6 } }}>
+              <Box key={product.id} sx={{ position: 'relative', p: 2, borderRadius: 3, boxShadow: 3, background: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 6 } }}>
                 <img src={product.imageUrls?.[0] || "https://via.placeholder.com/120"} alt={product.name} style={{ width: 100, height: 100, objectFit: 'contain', marginBottom: 8 }} />
+                <IconButton aria-label="Delete from wishlist" color="error" sx={{ position: 'absolute', top: 8, right: 8, background: '#fff', borderRadius: '50%', boxShadow: 1 }} onClick={() => handleDeleteProduct(product.id)}>
+                  <DeleteIcon />
+                </IconButton>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>{product.name}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{product.brand}</Typography>
                 {/* Unit selector if multiple units/options */}
