@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Grid, Card, CardMedia, Skeleton, Dialog, DialogTitle, DialogContent } from "@mui/material";
+import { Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { getFirestore, collection, getDocs, query, orderBy } from "firebase/firestore";
 import ProductCard from "../components/ProductCard";
+import SortFilterBar from "../components/SortFilterBar";
 import './CategoriesPage.css';
 
 const CategoriesPage = () => {
+  const [sortFilterOpen, setSortFilterOpen] = useState(false);
+  // Sort/filter state
+  const [sort, setSort] = useState("newest");
+  const [filters, setFilters] = useState({ price: [0, 10000], discount: [0, 100], rating: [0, 5], unit: [], brand: [], available: false });
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -75,6 +81,51 @@ const CategoriesPage = () => {
     fetchProducts();
   }, [selectedCategory]);
 
+  // Filter and sort products for selected category
+  const getFilteredProducts = () => {
+    let filtered = [...products];
+    // Only apply price filter if user changed from default
+    if (filters.price[0] > 0 || filters.price[1] < 10000) {
+      filtered = filtered.filter(p => (p.sellingPrice || p.price) >= filters.price[0] && (p.sellingPrice || p.price) <= filters.price[1]);
+    }
+    // Only apply discount filter if user changed from default
+    if (filters.discount[0] > 0 || filters.discount[1] < 100) {
+      filtered = filtered.filter(p => {
+        const mrp = p.mrp || 0, sp = p.sellingPrice || p.price || 0;
+        const discount = mrp > 0 ? Math.round(((mrp - sp) / mrp) * 100) : 0;
+        return discount >= filters.discount[0] && discount <= filters.discount[1];
+      });
+    }
+    // Only apply rating filter if user changed from default
+    if (filters.rating[0] > 0 || filters.rating[1] < 5) {
+      filtered = filtered.filter(p => (p.rating || 0) >= filters.rating[0] && (p.rating || 0) <= filters.rating[1]);
+    }
+    // Only apply unit filter if user selected units
+    if (filters.unit.length > 0) filtered = filtered.filter(p => filters.unit.includes(p.unit));
+    // Only apply brand filter if user selected brands
+    if (filters.brand.length > 0) filtered = filtered.filter(p => filters.brand.includes(p.brand));
+    // Only apply availability filter if user checked it
+    if (filters.available) filtered = filtered.filter(p => p.available !== false);
+
+    // Sort
+    switch (sort) {
+      case "priceLowHigh": filtered.sort((a, b) => (a.sellingPrice || a.price) - (b.sellingPrice || b.price)); break;
+      case "priceHighLow": filtered.sort((a, b) => (b.sellingPrice || b.price) - (a.sellingPrice || a.price)); break;
+      case "newest": filtered.sort((a, b) => (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt))); break;
+      case "oldest": filtered.sort((a, b) => (a.createdAt?.toDate?.() || new Date(a.createdAt)) - (b.createdAt?.toDate?.() || new Date(b.createdAt))); break;
+      case "nameAZ": filtered.sort((a, b) => (a.name || "").localeCompare(b.name || "")); break;
+      case "nameZA": filtered.sort((a, b) => (b.name || "").localeCompare(a.name || "")); break;
+      case "discount": filtered.sort((a, b) => {
+        const dA = a.mrp && a.sellingPrice ? ((a.mrp - a.sellingPrice) / a.mrp) : 0;
+        const dB = b.mrp && b.sellingPrice ? ((b.mrp - b.sellingPrice) / b.mrp) : 0;
+        return dB - dA;
+      }); break;
+      case "rating": filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
+      default: break;
+    }
+    return filtered;
+  };
+  const filteredProducts = getFilteredProducts();
   return (
     <Box className="categories-root" sx={{ pb: 10, display: 'flex', flexDirection: 'row', position: 'relative' }}>
       {/* Vertically stacked categories sidebar on the left */}
@@ -139,6 +190,7 @@ const CategoriesPage = () => {
       </Box>
       {/* Products area */}
   <Box sx={{ flex: '1 1 auto', pl: { xs: 2, md: 2 }, maxWidth: { xs: '100%', md: 'calc(100% - 100px)' } }}>
+       
         {/* Products Grid */}
         <Grid container spacing={2} sx={{ justifyContent: 'center', mb: 2 }}>
           {loadingProducts ? (
@@ -153,12 +205,12 @@ const CategoriesPage = () => {
                 <Skeleton variant="rectangular" width="100%" height={220} sx={{ borderRadius: 2, mb: 2 }} />
               </Grid>
             ))
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <Grid item xs={12}>
               <Typography>No products found for this category.</Typography>
             </Grid>
           ) : (
-            products.map(product => (
+            filteredProducts.map(product => (
               <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id}
                 sx={{
                   display: 'flex',

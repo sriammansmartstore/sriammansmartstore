@@ -60,20 +60,75 @@ const CheckoutPage = () => {
   const wishlistItems = location.state?.source === "wishlist" ? location.state.items : null;
   const orderSummary = wishlistItems
     ? {
-        items: wishlistItems.map(item => ({
-          name: item.name,
-          qty: item.quantity || item.qty || 1,
-          price: item.price || item.sellingPrice || 0
-        })),
-        total: wishlistItems.reduce((sum, item) => sum + ((item.price || item.sellingPrice || 0) * (item.quantity || item.qty || 1)), 0),
+        items: wishlistItems.map(item => {
+          // Try to get option details if present
+          let selectedOption = null;
+          if (Array.isArray(item.options)) {
+            // Try to match selected unit/unitSize if present
+            selectedOption = item.options.find(opt =>
+              (item.unit && opt.unit === item.unit) && (item.unitSize && opt.unitSize == item.unitSize)
+            ) || item.options[0];
+          } else {
+            selectedOption = {};
+          }
+          return {
+            name: item.name,
+            qty: item.quantity || item.qty || 1,
+            price: selectedOption.sellingPrice || item.price || item.sellingPrice || 0,
+            unit: selectedOption.unit || item.unit || '',
+            unitSize: selectedOption.unitSize || item.unitSize || '',
+            imageUrls: item.imageUrls,
+            imageUrl: item.imageUrl,
+          };
+        }),
+        total: wishlistItems.reduce((sum, item) => {
+          let selectedOption = null;
+          if (Array.isArray(item.options)) {
+            selectedOption = item.options.find(opt =>
+              (item.unit && opt.unit === item.unit) && (item.unitSize && opt.unitSize == item.unitSize)
+            ) || item.options[0];
+          } else {
+            selectedOption = {};
+          }
+          let price = selectedOption.sellingPrice || item.price || item.sellingPrice || 0;
+          let qty = item.quantity || item.qty || 1;
+          return sum + price * qty;
+        }, 0),
       }
     : {
-        items: cartItems.map(item => ({
-          name: item.name,
-          qty: item.quantity || item.qty || 1,
-          price: item.sellingPrice || item.price || 0
-        })),
-        total: cartItems.reduce((sum, item) => sum + ((item.sellingPrice || item.price || 0) * (item.quantity || item.qty || 1)), 0),
+        items: cartItems.map(item => {
+          // Try to get option details if present
+          let selectedOption = null;
+          if (Array.isArray(item.options)) {
+            selectedOption = item.options.find(opt =>
+              (item.unit && opt.unit === item.unit) && (item.unitSize && opt.unitSize == item.unitSize)
+            ) || item.options[0];
+          } else {
+            selectedOption = {};
+          }
+          return {
+            name: item.name,
+            qty: item.quantity || item.qty || 1,
+            price: selectedOption.sellingPrice || item.price || item.sellingPrice || 0,
+            unit: selectedOption.unit || item.unit || '',
+            unitSize: selectedOption.unitSize || item.unitSize || '',
+            imageUrls: item.imageUrls,
+            imageUrl: item.imageUrl,
+          };
+        }),
+        total: cartItems.reduce((sum, item) => {
+          let selectedOption = null;
+          if (Array.isArray(item.options)) {
+            selectedOption = item.options.find(opt =>
+              (item.unit && opt.unit === item.unit) && (item.unitSize && opt.unitSize == item.unitSize)
+            ) || item.options[0];
+          } else {
+            selectedOption = {};
+          }
+          let price = selectedOption.sellingPrice || item.price || item.sellingPrice || 0;
+          let qty = item.quantity || item.qty || 1;
+          return sum + price * qty;
+        }, 0),
       };
 
   // Redirect to PaymentOptionsPage with order details
@@ -91,11 +146,45 @@ const CheckoutPage = () => {
   return (
     <Box className="checkout-root">
       <Typography variant="h5" className="checkout-title">Checkout</Typography>
-      <Box className="checkout-summary">
-        {orderSummary.items.map((item, idx) => (
-          <Typography key={idx} variant="body1">{item.qty} x {item.name} - ₹{item.price * item.qty}</Typography>
-        ))}
-        <Typography variant="h6" sx={{ mt: 2 }}>Total: ₹{orderSummary.total}</Typography>
+      <Box className="checkout-summary" sx={{ mb: 2 }}>
+        {orderSummary.items.length === 0 ? (
+          <Typography variant="body2">No products in cart.</Typography>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {orderSummary.items.map((item, idx) => (
+              <Box key={idx} sx={{ display: 'flex', alignItems: 'center', bgcolor: '#f7f7f7', borderRadius: 2, p: 1.5, boxShadow: 1, mb: 1 }}>
+                {/* Product Image */}
+                <Box sx={{ width: 54, height: 54, mr: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, overflow: 'hidden', background: '#fff', boxShadow: 0 }}>
+                  <img
+                    src={Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? item.imageUrls[0] : (item.imageUrl || 'https://via.placeholder.com/54')}
+                    alt={item.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 8 }}
+                  />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.5 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1rem', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</Typography>
+                 
+                  {/* Per-unit price below name */}
+                  {(item.price && item.unitSize && item.unit) && (
+                    <Typography variant="caption" sx={{ color: '#388e3c', fontWeight: 600, mb: 0.5 }}>
+                      ₹{item.price} / {item.unitSize} {item.unit}
+                    </Typography>
+                  )}
+                </Box>
+                {/* Centered Qty and Total with more gap */}
+                <Box sx={{ textAlign: 'center', minWidth: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '1rem' }}>Qty: {item.qty}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#388e3c', fontSize: '1.1rem', letterSpacing: 0.5 }}>{`₹${item.price * item.qty}`}</Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        )}
+        <Box sx={{ mt: 2, mb: 2, px: 2, py: 1, bgcolor: '#e8f5e9', borderRadius: 2, boxShadow: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#388e3c', fontSize: '1.25rem', letterSpacing: 0.5 }}>
+            Grand Total: ₹{orderSummary.total}
+          </Typography>
+        </Box>
       </Box>
       <Box sx={{ mt: 3 }}>
         <Typography variant="subtitle1" sx={{ mb: 1 }}>Select Delivery Address</Typography>

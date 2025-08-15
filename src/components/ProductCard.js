@@ -30,6 +30,9 @@ const getDiscount = (mrp, sellingPrice) => {
 };
 
 const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
+  // Prevent multiple rapid cart updates
+  const pendingQuantityRef = React.useRef(null);
+  const [updatingQuantity, setUpdatingQuantity] = useState(false);
   const [alreadyWishlistedName, setAlreadyWishlistedName] = useState("");
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -99,15 +102,16 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   };
 
   const updateCartQuantity = async (newQuantity) => {
+    // Queue updates, only process the latest
+    if (updatingQuantity) {
+      pendingQuantityRef.current = newQuantity;
+      return;
+    }
+    setUpdatingQuantity(true);
+    let latestQuantity = newQuantity;
     try {
       const optionToAdd = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
       const cartRef = collection(db, "users", user.uid, "cart");
-      console.log('[Cart] Attempting to update/add:', {
-        productId: product.id,
-        option: optionToAdd,
-        newQuantity,
-        userId: user.uid
-      });
       // Find existing cart item for this product and option
       const q = query(
         cartRef,
@@ -116,38 +120,31 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
         where('unitSize', '==', optionToAdd.unitSize)
       );
       const cartSnap = await getDocs(q);
-      console.log('[Cart] Query result:', cartSnap.docs.map(d => ({ docId: d.id, data: d.data() })));
       if (!cartSnap.empty) {
-        // Update existing cart item
         const cartDoc = cartSnap.docs[0];
-        console.log('[Cart] Updating existing cart doc:', cartDoc.id, cartDoc.data());
-        await updateDoc(cartDoc.ref, { quantity: newQuantity, addedAt: new Date().toISOString() });
-        console.log('[Cart] Updated doc:', cartDoc.id, 'with quantity:', newQuantity);
+        await updateDoc(cartDoc.ref, { quantity: latestQuantity, addedAt: new Date().toISOString() });
       } else {
-        // Add new cart item
-        // Remove any 'id' field from product before adding to cart
         const { id, ...productWithoutId } = product;
-        console.log('[Cart] Adding new cart item:', {
+        await addDoc(cartRef, {
           productId: product.id,
           ...productWithoutId,
           ...optionToAdd,
-          quantity: newQuantity,
+          quantity: latestQuantity,
           addedAt: new Date().toISOString(),
         });
-        const addedDoc = await addDoc(cartRef, {
-          productId: product.id,
-          ...productWithoutId,
-          ...optionToAdd,
-          quantity: newQuantity,
-          addedAt: new Date().toISOString(),
-        });
-        console.log('[Cart] Added new doc with ID:', addedDoc.id);
       }
-      setAddQuantity(newQuantity);
-      if (onAddToCart) onAddToCart(product, newQuantity);
+      setAddQuantity(latestQuantity);
+      if (onAddToCart) onAddToCart(product, latestQuantity);
     } catch (err) {
-      console.error('Cart update error:', err);
       alert("Failed to update cart quantity.");
+    } finally {
+      setUpdatingQuantity(false);
+      // If another update was queued, process it
+      if (pendingQuantityRef.current !== null && pendingQuantityRef.current !== latestQuantity) {
+        const nextQty = pendingQuantityRef.current;
+        pendingQuantityRef.current = null;
+        updateCartQuantity(nextQty);
+      }
     }
   };
 
@@ -314,11 +311,23 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       </Link>
       {/* Add to Cart Section */}
       <Box className="add-to-cart-container" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 40, p: 0, m: 0, mt: 0, gap: 0 }}>
+        {/* Show Add to Cart button only if not showing quantity selector for single option products */}
+        {(!showQuantity || hasMultipleOptions) && (
+          <Button
+            variant="contained"
+            className="add-to-cart-btn"
+            onClick={handleAddToCartClick}
+            disabled={product.outOfStock}
+          >
+            {hasMultipleOptions ? 'Choose Options' : 'Add to Cart'}
+          </Button>
+        )}
+        {/* Show quantity controls only for single option products after adding to cart */}
         {showQuantity && !hasMultipleOptions && (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0 }}>
             <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={async e => {
               e.stopPropagation();
-              if (addQuantity <= 1) {
+              if (addQuantity <= 1 || updatingQuantity) {
                 setShowQuantity(false);
                 setAddQuantity(1);
               } else {
@@ -332,6 +341,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
             <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{addQuantity}</Typography>
             <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={async e => {
               e.stopPropagation();
+              if (updatingQuantity) return;
               const newQty = addQuantity + 1;
               setAddQuantity(newQty);
               await updateCartQuantity(newQty);
@@ -339,16 +349,6 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
               <AddIcon fontSize="small" />
             </IconButton>
           </Box>
-        )}
-        {!showQuantity && (
-          <Button
-            variant="contained"
-            className="add-to-cart-btn"
-            onClick={handleAddToCartClick}
-            disabled={product.outOfStock}
-          >
-            {hasMultipleOptions ? 'Choose Options' : 'Add to Cart'}
-          </Button>
         )}
       {/* Options Dialog for products with multiple options */}
       <Dialog open={showOptionsDialog} onClose={() => setShowOptionsDialog(false)} maxWidth="xs" fullWidth>
@@ -362,9 +362,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                   {opt.mrp && opt.mrp > opt.sellingPrice && (
                     <Typography sx={{ textDecoration: 'line-through', color: '#888', fontWeight: 500, fontSize: '0.95rem' }}>MRP: ₹{opt.mrp}</Typography>
                   )}
-                  <Typography sx={{ fontSize: '0.92rem', color: '#388e3c', fontWeight: 500 }}>Special Price: ₹{opt.specialPrice}</Typography>
-                  <Typography sx={{ fontSize: '0.92rem', color: '#888' }}>Available: {opt.quantity}</Typography>
-                </Box>
+                  </Box>
               ))}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 1, mt: 1 }}>
                 <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={() => setAddQuantity(q => Math.max(1, q - 1))}>
@@ -375,7 +373,19 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                   <AddIcon fontSize="small" />
                 </IconButton>
               </Box>
-              <Button variant="contained" color="primary" fullWidth sx={{ borderRadius: 2, mt: 1 }} disabled>Add</Button>
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                sx={{ borderRadius: 2, mt: 1 }}
+                onClick={async () => {
+                  setShowOptionsDialog(false);
+                  setShowQuantity(true);
+                  await updateCartQuantity(addQuantity);
+                }}
+              >
+                Add to Cart
+              </Button>
             </Box>
           )}
         </DialogContent>

@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { BottomNavigation, BottomNavigationAction } from "@mui/material";
+import { Button } from "@mui/material";
 import HomeIcon from "@mui/icons-material/Home";
 import CategoryIcon from "@mui/icons-material/Category";
 import SearchIcon from "@mui/icons-material/Search";
@@ -20,10 +21,10 @@ const BottomNavbar = () => {
   const handleSearch = () => {
     // Navigate to home page if not already there
     navigate('/');
-    // Trigger search focus event
+    // Trigger search focus event after navigation and render
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('focus-search'));
-    }, 100);
+    }, 460);
   };
 
   // Home handler - clears search and navigates to home

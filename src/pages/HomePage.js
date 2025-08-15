@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useContext, useRef } from "react";
 import { Box, Typography, Grid, Snackbar, Alert, TextField, InputAdornment, IconButton } from "@mui/material";
+import { Button } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import BannerSlideshow from "../components/BannerSlideshow";
+import SortFilterBar from "../components/SortFilterBar";
 import MicIcon from "@mui/icons-material/Mic";
 import './HomePage.css';
 import LocationDetectionWidget from "./LocationDetectionPage";
@@ -20,6 +22,24 @@ const Banner = styled(Box)(({ theme }) => ({
 }));
 
 const HomePage = () => {
+  // Helper to prevent rendering objects as children
+  const safeRender = (value) => {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+      console.error('Attempted to render object as React child:', value);
+      return null;
+    }
+    return value;
+  };
+  const [sortFilterOpen, setSortFilterOpen] = useState(false);
+  // Listen for S/F button event from BottomNavbar
+  useEffect(() => {
+    const handler = () => setSortFilterOpen((open) => !open);
+    window.addEventListener('toggle-sort-filter', handler);
+    return () => window.removeEventListener('toggle-sort-filter', handler);
+  }, []);
+  // Sort/filter state
+  const [sort, setSort] = useState("newest");
+  const [filters, setFilters] = useState({ price: [0, 10000], discount: [0, 100], rating: [0, 5], unit: [], brand: [], available: false });
   const [area, setArea] = useState("");
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -133,31 +153,67 @@ const HomePage = () => {
   }, []);
 
   // Filter and sort products based on search
+  // Filter and sort products based on search, sort, and filters
   const getFilteredProducts = () => {
-    if (!search.trim()) return products;
-    const searchText = search.trim().toLowerCase();
-    // Score function: higher score = more relevant
-    function getScore(product) {
-      let score = 0;
-      // Name exact/partial match
-      if (product.name && product.name.toLowerCase().includes(searchText)) score += 10;
-      if (product.nameTamil && product.nameTamil.toLowerCase().includes(searchText)) score += 10;
-      // Category match
-      if (product.category && product.category.toLowerCase().includes(searchText)) score += 5;
-      // Keywords match (comma separated string)
-      if (product.keywords) {
-        const keywordsArr = product.keywords.split(',').map(k => k.trim().toLowerCase());
-        if (keywordsArr.some(k => k.includes(searchText))) score += 7;
+    let filtered = [...products];
+    // Only apply search if user entered something
+    if (search.trim()) {
+      const searchText = search.trim().toLowerCase();
+      function getScore(product) {
+        let score = 0;
+        if (product.name && product.name.toLowerCase().includes(searchText)) score += 10;
+        if (product.nameTamil && product.nameTamil.toLowerCase().includes(searchText)) score += 10;
+        if (product.category && product.category.toLowerCase().includes(searchText)) score += 5;
+        if (product.keywords) {
+          const keywordsArr = product.keywords.split(',').map(k => k.trim().toLowerCase());
+          if (keywordsArr.some(k => k.includes(searchText))) score += 7;
+        }
+        if (product.description && product.description.toLowerCase().includes(searchText)) score += 2;
+        return score;
       }
-      // Description match
-      if (product.description && product.description.toLowerCase().includes(searchText)) score += 2;
-      return score;
+      filtered = filtered.map(p => ({ ...p, _score: getScore(p) })).filter(p => p._score > 0);
     }
-    // Filter products with score > 0, then sort by score desc, then createdAt desc
-    return products
-      .map(p => ({ ...p, _score: getScore(p) }))
-      .filter(p => p._score > 0)
-      .sort((a, b) => b._score - a._score || (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt)));
+
+    // Only apply price filter if user changed from default
+    if (filters.price[0] > 0 || filters.price[1] < 10000) {
+      filtered = filtered.filter(p => (p.sellingPrice || p.price) >= filters.price[0] && (p.sellingPrice || p.price) <= filters.price[1]);
+    }
+    // Only apply discount filter if user changed from default
+    if (filters.discount[0] > 0 || filters.discount[1] < 100) {
+      filtered = filtered.filter(p => {
+        const mrp = p.mrp || 0, sp = p.sellingPrice || p.price || 0;
+        const discount = mrp > 0 ? Math.round(((mrp - sp) / mrp) * 100) : 0;
+        return discount >= filters.discount[0] && discount <= filters.discount[1];
+      });
+    }
+    // Only apply rating filter if user changed from default
+    if (filters.rating[0] > 0 || filters.rating[1] < 5) {
+      filtered = filtered.filter(p => (p.rating || 0) >= filters.rating[0] && (p.rating || 0) <= filters.rating[1]);
+    }
+    // Only apply unit filter if user selected units
+    if (filters.unit.length > 0) filtered = filtered.filter(p => filters.unit.includes(p.unit));
+    // Only apply brand filter if user selected brands
+    if (filters.brand.length > 0) filtered = filtered.filter(p => filters.brand.includes(p.brand));
+    // Only apply availability filter if user checked it
+    if (filters.available) filtered = filtered.filter(p => p.available !== false);
+
+    // Sort
+    switch (sort) {
+      case "priceLowHigh": filtered.sort((a, b) => (a.sellingPrice || a.price) - (b.sellingPrice || b.price)); break;
+      case "priceHighLow": filtered.sort((a, b) => (b.sellingPrice || b.price) - (a.sellingPrice || a.price)); break;
+      case "newest": filtered.sort((a, b) => (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt))); break;
+      case "oldest": filtered.sort((a, b) => (a.createdAt?.toDate?.() || new Date(a.createdAt)) - (b.createdAt?.toDate?.() || new Date(b.createdAt))); break;
+      case "nameAZ": filtered.sort((a, b) => (a.name || "").localeCompare(b.name || "")); break;
+      case "nameZA": filtered.sort((a, b) => (b.name || "").localeCompare(a.name || "")); break;
+      case "discount": filtered.sort((a, b) => {
+        const dA = a.mrp && a.sellingPrice ? ((a.mrp - a.sellingPrice) / a.mrp) : 0;
+        const dB = b.mrp && b.sellingPrice ? ((b.mrp - b.sellingPrice) / b.mrp) : 0;
+        return dB - dA;
+      }); break;
+      case "rating": filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
+      default: break;
+    }
+    return filtered;
   };
 
   const filteredProducts = getFilteredProducts();
@@ -177,9 +233,10 @@ const HomePage = () => {
   // ...existing code...
 
   return (
-    <Box className="home-root">
+    <Box className="home-root" sx={{ position: 'relative', pb: 10 }}>
+      
      
-      <TextField
+             <TextField
         className="search-bar"
         label="Search products"
         variant="outlined"
