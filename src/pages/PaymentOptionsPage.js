@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Box, Typography, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Card, CardContent, Grid, Link, Alert } from "@mui/material";
+import { Box, Typography, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Card, CardContent, Grid, Link, Alert, Divider } from "@mui/material";
 import { useNotification } from '../components/NotificationProvider';
 import CreditCardIcon from "@mui/icons-material/CreditCard";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import { IconButton } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -20,6 +19,8 @@ const paymentOptions = [
 const PaymentOptionsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { notify } = useNotification() || { notify: () => {} };
+  
   // Get order details from location.state (passed from checkout)
   const orderSummary = location.state?.orderSummary || {
     items: [],
@@ -42,13 +43,11 @@ const PaymentOptionsPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
-  // single inline notification shown below the phone input
   const [inlineMessage, setInlineMessage] = useState(null);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [editingPhone, setEditingPhone] = useState(false);
   const [lastRequestedPhone, setLastRequestedPhone] = useState(null);
-  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState(null); // Track the newly verified phone number
-  const { notify } = useNotification() || { notify: () => {} };
+  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState(null);
 
   // If the signed-in user already has a phone credential, treat as verified
   useEffect(() => {
@@ -241,278 +240,296 @@ const PaymentOptionsPage = () => {
     }
   };
 
+  const handleLinkAnotherNumber = () => {
+    setEditingPhone(true);
+    setShowPaymentOptions(false);
+    setPhoneVerified(false);
+    setInlineMessage(null);
+    setOtp('');
+    setOtpSent(false);
+    setPhone('');
+    setVerifiedPhoneNumber(null);
+    setConfirmationResult(null);
+    setVerificationId(null);
+    if (recaptchaVerifier) {
+      try {
+        recaptchaVerifier.clear();
+      } catch (e) {
+        console.debug('Error clearing recaptcha:', e);
+      }
+      setRecaptchaVerifier(null);
+    }
+  };
+
+  const sendOtp = async () => {
+    try {
+      if (!phone || phone.length < 6) { 
+        setInlineMessage({ type: 'error', text: 'Please enter a valid mobile number.' }); 
+        notify('Please enter a valid mobile number', 'warning');
+        return; 
+      }
+      const fullPhone = phone.startsWith('+') ? phone : (countryCode + phone);
+
+      if (auth && auth.currentUser) {
+        const currentPhone = auth.currentUser.phoneNumber;
+        if (currentPhone && currentPhone === fullPhone) {
+          setPhoneVerified(true);
+          setInlineMessage({ type: 'success', text: 'Phone already verified.' });
+          notify('Phone already verified.', 'success');
+          return;
+        }
+      }
+
+      let verifier = recaptchaVerifier;
+      if (!verifier) {
+        verifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
+          size: 'normal',
+          callback: (response) => console.log('reCAPTCHA solved:', response),
+          'expired-callback': () => {
+            setInlineMessage({ type: 'warning', text: 'Security verification expired. Please complete the verification again.' });
+            notify('Security verification expired', 'warning');
+          }
+        });
+        await verifier.render();
+        setRecaptchaVerifier(verifier);
+      }
+      
+      setInlineMessage({ type: 'info', text: 'Sending OTP...' });
+      const confirmation = await signInWithPhoneNumber(auth, fullPhone, verifier);
+      setConfirmationResult(confirmation);
+      setVerificationId(confirmation?.verificationId || null);
+      setOtpSent(true);
+      setInlineMessage({ type: 'info', text: 'OTP sent. Enter the code to verify.' });
+      notify('OTP sent successfully', 'success');
+    } catch (err) {
+      console.error('OTP send failed', err);
+      let errorMessage = 'Failed to send OTP. Please try again.';
+      setInlineMessage({ type: 'error', text: errorMessage });
+      notify(errorMessage, 'error');
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!confirmationResult && !verificationId) { 
+      setInlineMessage({ type: 'error', text: 'No OTP request found.' }); 
+      notify('No OTP request found', 'error');
+      return; 
+    }
+    setVerifying(true);
+    
+    try {
+      const vid = verificationId || confirmationResult?.verificationId;
+      if (!vid) throw new Error('Missing verification id');
+      const credential = PhoneAuthProvider.credential(vid, otp);
+      
+      if (auth && auth.currentUser) {
+        await linkWithCredential(auth.currentUser, credential);
+        setPhoneVerified(true);
+        setVerifiedPhoneNumber(countryCode + phone);
+        setInlineMessage({ type: 'success', text: 'Phone verified. You may proceed to place the order.' });
+        setShowPaymentOptions(true);
+        setEditingPhone(false);
+        notify('Phone verified successfully!', 'success');
+      } else {
+        const res = await confirmationResult.confirm(otp);
+        setPhoneVerified(true);
+        setVerifiedPhoneNumber(countryCode + phone);
+        setInlineMessage({ type: 'success', text: 'Phone verified.' });
+        setShowPaymentOptions(true);
+        setEditingPhone(false);
+        notify('Phone verified successfully!', 'success');
+      }
+    } catch (err) {
+      console.error('OTP verify failed', err);
+      let verifyErrorMessage = 'Verification failed. Please check the OTP and try again.';
+      setInlineMessage({ type: 'error', text: verifyErrorMessage });
+      notify('OTP verification failed', 'error');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   return (
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
-      <Box display="flex" alignItems="center" mb={2}>
+    <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, maxWidth: '100%', mx: 'auto', minHeight: '100vh' }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" mb={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto' }}>
         <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Payment & Verification</Typography>
       </Box>
 
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto' }}>
+        {/* Phone Verification Section */}
+        <Grid item xs={12} lg={8}>
           <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Contact & Verification</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Verify your mobile number with OTP (reCAPTCHA protected) before placing the order.</Typography>
-              <TextField fullWidth label="Mobile Number" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+]/g, ''))} placeholder="Enter mobile (without country code)" sx={{ mb: 1 }} InputProps={{ readOnly: !editingPhone }} />
-              {!editingPhone && (
-                <Button variant="text" size="small" onClick={() => {
-                  // allow linking another phone number
-                  setEditingPhone(true);
-                  setShowPaymentOptions(false);
-                  setPhoneVerified(false);
-                  setInlineMessage(null);
-                  setOtp('');
-                  setOtpSent(false);
-                  setPhone(''); // Clear the phone number field
-                  setVerifiedPhoneNumber(null); // Clear the verified phone number
-                  setConfirmationResult(null);
-                  setVerificationId(null);
-                  // Clear any existing recaptcha
-                  if (recaptchaVerifier) {
-                    try {
-                      recaptchaVerifier.clear();
-                    } catch (e) {
-                      console.debug('Error clearing recaptcha:', e);
-                    }
-                    setRecaptchaVerifier(null);
-                  }
-                }}>Link another phone number</Button>
-              )}
-              {editingPhone && !phoneVerified && !otpSent && (
-                <Box id="recaptcha-container" sx={{ mt: 1, mb: 1, minHeight: '78px' }} />
-              )}
-              {phoneVerified ? null : (editingPhone && !otpSent ? (
-                <Button variant="contained" fullWidth onClick={async () => {
-                  try {
-                      if (!phone || phone.length < 6) { setInlineMessage({ type: 'error', text: 'Please enter a valid mobile number.' }); return; }
-                    const fullPhone = phone.startsWith('+') ? phone : (countryCode + phone);
-
-                    // If current user already has this phone linked, skip sending OTP
-                    if (auth && auth.currentUser) {
-                      const currentPhone = auth.currentUser.phoneNumber;
-                      const hasPhoneProvider = (auth.currentUser.providerData || []).some(p => p.providerId === 'phone');
-                      if (currentPhone && currentPhone === fullPhone) {
-                        setPhoneVerified(true);
-                        setInlineMessage({ type: 'success', text: 'Phone already verified.' });
-                        notify('Phone already verified.', 'success');
-                        return;
-                      }
-                      if (hasPhoneProvider && !currentPhone) {
-                        // provider exists but no phoneNumber on profile — treat as verified to avoid re-linking
-                        setPhoneVerified(true);
-                        setInlineMessage({ type: 'success', text: 'Phone verification present on account.' });
-                        notify('Phone verification present on account.', 'success');
-                        return;
-                      }
-                    }
-
-                    let verifier = recaptchaVerifier;
-                    try {
-                      if (!verifier) {
-                        verifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
-                          size: 'normal',
-                          callback: (response) => {
-                            console.log('reCAPTCHA solved:', response);
-                          },
-                          'expired-callback': () => {
-                            console.log('reCAPTCHA expired');
-                            setInlineMessage({ type: 'warning', text: 'Security verification expired. Please complete the verification again.' });
-                            notify('Security verification expired', 'warning');
-                          },
-                          'error-callback': (error) => {
-                            console.error('reCAPTCHA error:', error);
-                            setInlineMessage({ type: 'error', text: 'Security verification encountered an issue. Please refresh the page and try again.' });
-                            notify('Security verification error', 'error');
-                          }
-                        });
-                        
-                        // Add timeout for render operation
-                        const renderPromise = verifier.render();
-                        const timeoutPromise = new Promise((_, reject) => 
-                          setTimeout(() => reject(new Error('Security verification is taking longer than expected. Please check your internet connection.')), 10000)
-                        );
-                        
-                        await Promise.race([renderPromise, timeoutPromise]);
-                        setRecaptchaVerifier(verifier);
-                      }
-                      setInlineMessage({ type: 'info', text: 'Verifying reCAPTCHA...' });
-                      if (typeof verifier.verify === 'function') {
-                        await verifier.verify();
-                      }
-                      setInlineMessage({ type: 'info', text: 'Sending OTP...' });
-                      
-                      // Add timeout for OTP sending
-                      const otpPromise = signInWithPhoneNumber(auth, fullPhone, verifier);
-                      const otpTimeoutPromise = new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('SMS delivery is taking longer than expected. Please check your network connection and try again.')), 15000)
-                      );
-                      
-                      const confirmation = await Promise.race([otpPromise, otpTimeoutPromise]);
-                      setConfirmationResult(confirmation);
-                      setVerificationId(confirmation?.verificationId || null);
-                      setOtpSent(true);
-                      setInlineMessage({ type: 'info', text: 'OTP sent. Enter the code to verify.' });
-                    } catch (err) {
-                      console.error('OTP send failed', err);
-                      let errorMessage = 'Failed to send OTP. ';
-                      
-                      if (err.message && (err.message.includes('timeout') || err.message.includes('longer than expected'))) {
-                        errorMessage += 'The request is taking longer than usual. Please check your internet connection and try again.';
-                      } else if (err.code === 'auth/invalid-app-credential') {
-                        errorMessage += 'Firebase configuration issue. Please check Firebase project settings.';
-                      } else if (err.code === 'auth/too-many-requests') {
-                        errorMessage += 'Too many requests. Please try again later.';
-                      } else if (err.code === 'auth/invalid-phone-number') {
-                        errorMessage += 'Invalid phone number format.';
-                      } else if (err.code === 'auth/missing-phone-number') {
-                        errorMessage += 'Phone number is required.';
-                      } else if (err.code === 'auth/captcha-check-failed') {
-                        errorMessage += 'reCAPTCHA verification failed. Please try again.';
-                      } else {
-                        errorMessage += 'Please try again.';
-                      }
-                      
-                      try {
-                        if (verifier && typeof verifier.clear === 'function') verifier.clear();
-                        if (window.grecaptcha && window.recaptchaWidgetId != null) {
-                          try { window.grecaptcha.reset(window.recaptchaWidgetId); } catch (e) {}
-                        }
-                      } catch(e){}
-                      setRecaptchaVerifier(null);
-                      setInlineMessage({ type: 'error', text: errorMessage });
-                    }
-                  } catch (err) {
-                    console.error('OTP send failed', err);
-                    setInlineMessage({ type: 'error', text: 'Failed to send OTP. Try again.' });
-                  }
-                }}>
-                  Send OTP
-                </Button>
-              ) : (
+              
+              {!phoneVerified && (
                 <Box>
-                  <TextField fullWidth label="Enter OTP" value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))} sx={{ mb: 1 }} />
-                  <Button variant="contained" fullWidth onClick={async () => {
-                    if (!confirmationResult && !verificationId) { setInlineMessage({ type: 'error', text: 'No OTP request found.' }); return; }
-                    setVerifying(true);
-                    
-                    // Add timeout for verification process
-                    const verifyTimeout = setTimeout(() => {
-                      setVerifying(false);
-                      setInlineMessage({ 
-                        type: 'warning', 
-                        text: 'Verification is taking longer than expected. Please check your network connection and try again.' 
-                      });
-                      notify('Verification timeout - please try again', 'warning');
-                    }, 30000); // 30 second timeout
-                    
-                    try {
-                      const vid = verificationId || confirmationResult?.verificationId;
-                      if (!vid) throw new Error('Missing verification id');
-                      const credential = PhoneAuthProvider.credential(vid, otp);
-                      if (auth && auth.currentUser) {
-                        // Link the phone credential to the currently signed-in user (won't replace their session)
-                        try {
-                          await linkWithCredential(auth.currentUser, credential);
-                          console.debug('Phone linked to current user');
-                          setPhoneVerified(true);
-                          setVerifiedPhoneNumber(countryCode + phone); // Store the verified phone number
-                          setInlineMessage({ type: 'success', text: 'Phone verified. You may proceed to place the order.' });
-                          setShowPaymentOptions(true);
-                          setEditingPhone(false);
-                          // persist verified phone in Firestore under users/{uid}/verifiedPhones
-                          try {
-                            const db = getFirestore();
-                            const uid = auth.currentUser.uid;
-                            if (uid) {
-                              const sanitized = (countryCode + phone).replace(/[^0-9+]/g, '');
-                              const vpRef = doc(db, 'users', uid, 'verifiedPhones', sanitized);
-                              await setDoc(vpRef, { phone: (countryCode + phone), verifiedAt: serverTimestamp() });
-                            }
-                          } catch (e) { console.error('Failed to save verified phone', e); }
-                        } catch (linkErr) {
-                          console.error('Link failed', linkErr);
-                          // If provider already linked, treat as success
-                          if (linkErr && (linkErr.code === 'auth/provider-already-linked' || (linkErr.message && linkErr.message.indexOf('provider-already-linked') !== -1))) {
-                            // already linked to this account
-                            setPhoneVerified(true);
-                            setInlineMessage({ type: 'success', text: 'Phone was already linked to your account.' });
-                            setShowPaymentOptions(true);
-                            setEditingPhone(false);
-                            try {
-                              const db = getFirestore();
-                              const uid = auth.currentUser.uid;
-                              if (uid) {
-                                const sanitized = (countryCode + phone).replace(/[^0-9+]/g, '');
-                                const vpRef = doc(db, 'users', uid, 'verifiedPhones', sanitized);
-                                await setDoc(vpRef, { phone: (countryCode + phone), verifiedAt: serverTimestamp() });
-                              }
-                            } catch (e) { console.error('Failed to save verified phone', e); }
-                          } else if (linkErr && (linkErr.code === 'auth/credential-already-in-use' || (linkErr.message && linkErr.message.indexOf('credential-already-in-use') !== -1))) {
-                            // phone credential already linked to another account
-                            console.warn('Phone credential already in use by another account', linkErr);
-                            setInlineMessage({ type: 'error', text: 'This phone number is already linked to another account. Please sign in with that number or use a different phone.' });
-                          } else {
-                            throw linkErr;
-                          }
-                        }
-                      } else {
-                        // No existing signed-in user: fall back to confirmationResult (this will sign in)
-                        const res = await confirmationResult.confirm(otp);
-                        console.debug('Phone verification (signed in):', res);
-                        setPhoneVerified(true);
-                        setVerifiedPhoneNumber(countryCode + phone); // Store the verified phone number
-                        setInlineMessage({ type: 'success', text: 'Phone verified.' });
-                        setShowPaymentOptions(true);
-                        setEditingPhone(false);
-                      }
-                    } catch (err) {
-                      console.error('OTP verify failed', err);
-                      let verifyErrorMessage = 'Verification failed. ';
-                      if (err.message && err.message.includes('invalid-verification-code')) {
-                        verifyErrorMessage += 'Please check the OTP and try again.';
-                      } else if (err.message && err.message.includes('expired')) {
-                        verifyErrorMessage += 'The OTP has expired. Please request a new one.';
-                      } else {
-                        verifyErrorMessage += 'Please try again or request a new OTP.';
-                      }
-                      setInlineMessage({ type: 'error', text: verifyErrorMessage });
-                      notify('OTP verification failed', 'error');
-                    } finally {
-                      clearTimeout(verifyTimeout);
-                      setVerifying(false);
-                    }
-                  }}>{verifying ? <CircularProgress size={20} /> : 'Verify OTP'}</Button>
+                  <TextField
+                    label="Phone Number"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    fullWidth
+                    variant="outlined"
+                    disabled={loading || phoneVerified}
+                    placeholder="Enter your 10-digit mobile number"
+                    sx={{ 
+                      mb: 2,
+                      '& .MuiOutlinedInput-root': { borderRadius: 2 }
+                    }}
+                  />
+
+                  {otpSent && (
+                    <TextField
+                      label="Enter OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      fullWidth
+                      variant="outlined"
+                      disabled={loading || phoneVerified}
+                      placeholder="Enter 6-digit OTP"
+                      inputProps={{ maxLength: 6 }}
+                      sx={{ 
+                        mb: 2,
+                        '& .MuiOutlinedInput-root': { borderRadius: 2 }
+                      }}
+                    />
+                  )}
+
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                    {!otpSent ? (
+                      <Button
+                        variant="contained"
+                        onClick={sendOtp}
+                        disabled={loading || !phone || phoneVerified}
+                        sx={{ 
+                          borderRadius: 2,
+                          fontWeight: 600,
+                          px: { xs: 2, sm: 3 },
+                          py: { xs: 1, sm: 1.2 }
+                        }}
+                      >
+                        {loading ? <CircularProgress size={20} /> : 'Send OTP'}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        onClick={verifyOtp}
+                        disabled={loading || !otp || phoneVerified}
+                        sx={{ 
+                          borderRadius: 2,
+                          fontWeight: 600,
+                          px: { xs: 2, sm: 3 },
+                          py: { xs: 1, sm: 1.2 }
+                        }}
+                      >
+                        {verifying ? <CircularProgress size={20} /> : 'Verify OTP'}
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="text"
+                      onClick={handleLinkAnotherNumber}
+                      disabled={loading}
+                      sx={{ 
+                        borderRadius: 2,
+                        fontWeight: 500
+                      }}
+                    >
+                      Link another phone number
+                    </Button>
+                  </Box>
+
+                  {editingPhone && !phoneVerified && !otpSent && (
+                    <Box id="recaptcha-container" sx={{ mt: 1, mb: 1, minHeight: '78px' }} />
+                  )}
                 </Box>
-              ))}
-              {/* single inline message area below phone input and OTP UI */}
-              {inlineMessage && <Alert severity={inlineMessage.type} sx={{ mt: 2 }}>{inlineMessage.text}</Alert>}
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>By verifying you agree to our <Link component={RouterLink} to="/terms">Terms</Link> and <Link component={RouterLink} to="/privacy">Privacy Policy</Link>.</Typography>
+              )}
+
+              {inlineMessage && <Alert severity={inlineMessage.type} sx={{ mt: 2, borderRadius: 2 }}>{inlineMessage.text}</Alert>}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+                By verifying you agree to our <Link component={RouterLink} to="/terms">Terms</Link> and <Link component={RouterLink} to="/privacy">Privacy Policy</Link>.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Order Summary */}
+        <Grid item xs={12} lg={4}>
+          <Card sx={{ borderRadius: 2, boxShadow: 2, position: { lg: 'sticky' }, top: 20 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Order Summary</Typography>
+              
+              <Box sx={{ mb: 2 }}>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2">Items ({orderSummary.items.length})</Typography>
+                  <Typography variant="body2">₹{orderSummary.total}</Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2">Delivery</Typography>
+                  <Typography variant="body2" color="success.main">FREE</Typography>
+                </Box>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2">Taxes</Typography>
+                  <Typography variant="body2">Included</Typography>
+                </Box>
+              </Box>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Box sx={{ 
+                background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)', 
+                borderRadius: 3, 
+                p: 2.5,
+                boxShadow: '0 4px 20px rgba(255, 107, 107, 0.25)'
+              }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>Grand Total</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', fontSize: '1.4rem' }}>
+                    ₹{orderSummary.total}
+                  </Typography>
+                </Box>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
 
         {showPaymentOptions && (
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12}>
             <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Payment Options</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Choose a payment method. You will be prompted to complete payment for online methods.</Typography>
-                <Grid container spacing={2}>
+                <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                   {paymentOptions.map(opt => (
                     <Grid item xs={12} key={opt.id}>
-                      <Card variant="outlined" sx={{ p: 1 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between">
-                          <Box display="flex" alignItems="center" gap={2}>
+                      <Card variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
+                        <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap={{ xs: 'wrap', sm: 'nowrap' }} gap={2}>
+                          <Box display="flex" alignItems="center" gap={2} sx={{ flex: 1, minWidth: 0 }}>
                             {opt.icon}
-                            <Box>
-                              <Typography variant="subtitle1">{opt.name}</Typography>
-                              <Typography variant="caption" color="text.secondary">{opt.type === 'cod' ? 'Pay with cash on delivery' : 'Secure online payment'}</Typography>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.95rem', sm: '1rem' } }}>{opt.name}</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' } }}>{opt.type === 'cod' ? 'Pay with cash on delivery' : 'Secure online payment'}</Typography>
                             </Box>
                           </Box>
-                          <Button variant="contained" disabled={loading} onClick={() => handlePay(opt)}>
+                          <Button 
+                            variant="contained" 
+                            disabled={loading} 
+                            onClick={() => handlePay(opt)}
+                            sx={{
+                              borderRadius: 2,
+                              fontWeight: 600,
+                              px: { xs: 2, sm: 3 },
+                              py: { xs: 1, sm: 1.2 },
+                              fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                              minWidth: { xs: '100%', sm: 'auto' },
+                              mt: { xs: 1, sm: 0 }
+                            }}
+                          >
                             {loading ? <CircularProgress size={20} /> : (opt.type === "online" ? "Pay Online" : "Place Order")}
                           </Button>
                         </Box>
@@ -542,10 +559,8 @@ const PaymentOptionsPage = () => {
           <Button onClick={handleDialogClose} autoFocus>OK</Button>
         </DialogActions>
       </Dialog>
-  {/* notifications shown via NotificationProvider */}
     </Box>
   );
-
 };
 
 export default PaymentOptionsPage;

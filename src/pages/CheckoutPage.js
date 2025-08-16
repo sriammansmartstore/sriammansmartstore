@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, CircularProgress, Card, CardContent, Grid, Divider, Alert, Chip, IconButton } from "@mui/material";
+import { useNotification } from '../components/NotificationProvider';
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import ShoppingBagIcon from "@mui/icons-material/ShoppingBag";
@@ -13,6 +14,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 const CheckoutPage = () => {
   const { user } = useContext(AuthContext);
+  const notify = useNotification();
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [loading, setLoading] = useState(true);
@@ -147,9 +149,9 @@ const CheckoutPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, maxWidth: '100%', mx: 'auto', minHeight: '100vh' }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" mb={3}>
+      <Box display="flex" alignItems="center" mb={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto' }}>
         <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
           <ArrowBackIcon />
         </IconButton>
@@ -181,9 +183,9 @@ const CheckoutPage = () => {
           </CardContent>
         </Card>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto' }}>
           {/* Order Summary */}
-          <Grid item xs={12} md={8}>
+          <Grid item xs={12} lg={8}>
             <Card sx={{ borderRadius: 2, boxShadow: 2, mb: 3 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Order Summary</Typography>
@@ -273,20 +275,23 @@ const CheckoutPage = () => {
                     <CircularProgress size={24} />
                   </Box>
                 ) : addresses.length === 0 ? (
-                  <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
                     <Typography variant="body2" sx={{ mb: 2 }}>No addresses found. Please add a delivery address to continue.</Typography>
                     <Button 
                       variant="contained" 
                       startIcon={<AddIcon />}
-                      onClick={() => navigate('/addresses')}
-                      sx={{ fontWeight: 600 }}
+                      onClick={() => {
+                        navigate('/addresses');
+                        notify('Add a delivery address to continue with checkout', 'info');
+                      }}
+                      sx={{ fontWeight: 600, borderRadius: 2 }}
                     >
                       Add New Address
                     </Button>
                   </Alert>
                 ) : (
                   <Box>
-                    <FormControl fullWidth sx={{ mb: 2 }}>
+                    <FormControl fullWidth sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
                       <InputLabel id="address-select-label">Select Delivery Address</InputLabel>
                       <Select
                         labelId="address-select-label"
@@ -326,8 +331,11 @@ const CheckoutPage = () => {
                     <Button 
                       variant="outlined" 
                       startIcon={<AddIcon />}
-                      onClick={() => navigate('/addresses')}
-                      sx={{ fontWeight: 500 }}
+                      onClick={() => {
+                        navigate('/addresses');
+                        notify('You can add multiple delivery addresses', 'info');
+                      }}
+                      sx={{ fontWeight: 500, borderRadius: 2 }}
                     >
                       Add New Address
                     </Button>
@@ -338,8 +346,8 @@ const CheckoutPage = () => {
           </Grid>
           
           {/* Payment Summary */}
-          <Grid item xs={12} md={4}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, position: 'sticky', top: 20 }}>
+          <Grid item xs={12} lg={4}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, position: { lg: 'sticky' }, top: 20 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Payment Summary</Typography>
                 
@@ -372,12 +380,18 @@ const CheckoutPage = () => {
                   fullWidth
                   size="large"
                   disabled={loading || !selectedAddress || paymentLoading}
-                  onClick={handleProceedToPayment}
+                  onClick={() => {
+                    if (!selectedAddress) {
+                      notify('Please select a delivery address to continue', 'warning');
+                      return;
+                    }
+                    handleProceedToPayment();
+                  }}
                   sx={{ 
                     fontWeight: 600, 
                     borderRadius: 2, 
-                    py: 1.5,
-                    fontSize: '1.1rem',
+                    py: { xs: 1.2, sm: 1.5 },
+                    fontSize: { xs: '1rem', sm: '1.1rem' },
                     mb: 2
                   }}
                 >

@@ -26,6 +26,7 @@ const baseLinks = [
   { label: "My Orders", path: "/orders" },
   { label: "Payment Options", path: "/payment" },
   { label: "Notifications", path: "/notifications" },
+  { label: "Contact Us", path: "/contact" },
   { label: "About Us", path: "/about" },
   { label: "Report a Problem", path: "/report" },
 ];

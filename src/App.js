@@ -16,6 +16,7 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import Badge from "@mui/material/Badge";
 import Drawer from "@mui/material/Drawer";
+import Box from "@mui/material/Box";
 import { db } from "./firebase";
 import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import WishlistDetailPage from "./pages/WishlistDetailPage";
@@ -40,6 +41,7 @@ const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
 const ReportProblemPage = lazy(() => import("./pages/ReportProblemPage"));
 const UserDataPage = lazy(() => import("./pages/UserDataPage"));
 const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
 
 const theme = createTheme({
   palette: {
@@ -124,7 +126,14 @@ function App() {
               <MorePage onClose={() => setDrawerOpen(false)} />
             </Suspense>
           </Drawer>
-          <div style={{ paddingTop: 64, paddingBottom: 56, minHeight: "100vh", background: '#fff' }}>
+          <Box sx={{ 
+            paddingTop: '64px', 
+            paddingBottom: '56px', 
+            minHeight: "100vh", 
+            background: '#fff',
+            width: '100%',
+            overflow: 'hidden'
+          }}>
             <Suspense fallback={null}>
               <Routes>
                 <Route path="/" element={<HomePage />} />
@@ -143,6 +152,7 @@ function App() {
                 <Route path="/location" element={<LocationDetectionPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/about" element={<AboutUsPage />} />
+                <Route path="/contact" element={<ContactPage />} />
                 <Route path="/report" element={<ReportProblemPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
@@ -155,7 +165,7 @@ function App() {
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </Suspense>
-          </div>
+          </Box>
           <BottomNavbar />
         </Router>
         </NotificationProvider>

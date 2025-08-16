@@ -7,7 +7,7 @@ const ReturnPolicyPage = () => {
   const navigate = useNavigate();
   return (
     <Box sx={{ px: { xs: 1, sm: 2 }, py: { xs: 1.5, sm: 2 }, maxWidth: 600, mx: 'auto' }}>
-      <IconButton aria-label="back" onClick={() => navigate('/')} sx={{ mb: 1 }}>
+      <IconButton aria-label="back" onClick={() => navigate(-1)} sx={{ mb: 1 }}>
         <ArrowBackIcon />
       </IconButton>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 14, lineHeight: 1.2 }}>Return Policy</h1>

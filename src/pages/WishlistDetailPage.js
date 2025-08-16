@@ -54,7 +54,7 @@ const WishlistDetailPage = () => {
   return (
     <Box sx={{ px: { xs: 1, sm: 2 }, py: { xs: 2, sm: 3 }, maxWidth: 900, mx: "auto" }}>
       <Box display="flex" alignItems="center" mb={2}>
-        <IconButton onClick={() => navigate("/wishlist")} size="small" sx={{ mr: 1 }}>
+        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>{wishlistName || "Wishlist"}</Typography>
