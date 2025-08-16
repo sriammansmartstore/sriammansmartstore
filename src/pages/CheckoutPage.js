@@ -1,6 +1,9 @@
 import React, { useContext, useEffect, useState } from "react";
-import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, CircularProgress, Stack } from "@mui/material";
-import './CheckoutPage.css';
+import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, CircularProgress, Card, CardContent, Grid, Divider, Alert, Chip, IconButton } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import ShoppingBagIcon from "@mui/icons-material/ShoppingBag";
+import AddIcon from "@mui/icons-material/Add";
 import { AuthContext } from "../context/AuthContext";
 import { db } from "../firebase";
 import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
@@ -144,91 +147,253 @@ const CheckoutPage = () => {
   };
 
   return (
-    <Box className="checkout-root">
-      <Typography variant="h5" className="checkout-title">Checkout</Typography>
-      <Box className="checkout-summary" sx={{ mb: 2 }}>
-        {orderSummary.items.length === 0 ? (
-          <Typography variant="body2">No products in cart.</Typography>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {orderSummary.items.map((item, idx) => (
-              <Box key={idx} sx={{ display: 'flex', alignItems: 'center', bgcolor: '#f7f7f7', borderRadius: 2, p: 1.5, boxShadow: 1, mb: 1 }}>
-                {/* Product Image */}
-                <Box sx={{ width: 54, height: 54, mr: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, overflow: 'hidden', background: '#fff', boxShadow: 0 }}>
-                  <img
-                    src={Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? item.imageUrls[0] : (item.imageUrl || 'https://via.placeholder.com/54')}
-                    alt={item.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 8 }}
-                  />
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
+      {/* Header */}
+      <Box display="flex" alignItems="center" mb={3}>
+        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Checkout</Typography>
+        {orderSummary.items.length > 0 && (
+          <Chip 
+            label={`${orderSummary.items.length} item${orderSummary.items.length > 1 ? 's' : ''}`} 
+            color="primary" 
+            size="small" 
+          />
+        )}
+      </Box>
+
+      {orderSummary.items.length === 0 ? (
+        <Card sx={{ borderRadius: 2, boxShadow: 2, textAlign: 'center', py: 4 }}>
+          <CardContent>
+            <ShoppingBagIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>No items to checkout</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Your cart is empty. Add some items to proceed with checkout.
+            </Typography>
+            <Button 
+              variant="contained" 
+              onClick={() => navigate('/')}
+              sx={{ fontWeight: 600, borderRadius: 2, px: 4, py: 1.5 }}
+            >
+              Continue Shopping
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Grid container spacing={3}>
+          {/* Order Summary */}
+          <Grid item xs={12} md={8}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Order Summary</Typography>
+                <Box>
+                  {orderSummary.items.map((item, index) => (
+                    <Box key={index}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', py: 2 }}>
+                        {/* Product Image */}
+                        <Box 
+                          sx={{ 
+                            width: 64, 
+                            height: 64, 
+                            mr: 2, 
+                            borderRadius: 2, 
+                            overflow: 'hidden',
+                            bgcolor: 'grey.100',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <img
+                            src={Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? item.imageUrls[0] : (item.imageUrl || 'https://via.placeholder.com/64')}
+                            alt={item.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                          />
+                        </Box>
+                        
+                        {/* Product Details */}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                            {item.name}
+                          </Typography>
+                          {(item.unitSize && item.unit) && (
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                              {item.unitSize} {item.unit.toUpperCase()}
+                            </Typography>
+                          )}
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                            ₹{item.price} per unit
+                          </Typography>
+                        </Box>
+                        
+                        {/* Quantity and Total */}
+                        <Box sx={{ textAlign: 'right', minWidth: 100 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                            Qty: {item.qty}
+                          </Typography>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'success.main' }}>
+                            ₹{item.price * item.qty}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      {index < orderSummary.items.length - 1 && <Divider />}
+                    </Box>
+                  ))}
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1rem', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</Typography>
-                 
-                  {/* Per-unit price below name */}
-                  {(item.price && item.unitSize && item.unit) && (
-                    <Typography variant="caption" sx={{ color: '#388e3c', fontWeight: 600, mb: 0.5 }}>
-                      ₹{item.price} / {item.unitSize} {item.unit}
+                
+                <Divider sx={{ my: 2 }} />
+                
+                <Box sx={{ 
+                  background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)', 
+                  borderRadius: 3, 
+                  p: 2.5,
+                  boxShadow: '0 4px 20px rgba(255, 107, 107, 0.25)'
+                }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>Grand Total</Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', fontSize: '1.4rem' }}>
+                      ₹{orderSummary.total}
                     </Typography>
-                  )}
+                  </Box>
                 </Box>
-                {/* Centered Qty and Total with more gap */}
-                <Box sx={{ textAlign: 'center', minWidth: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '1rem' }}>Qty: {item.qty}</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#388e3c', fontSize: '1.1rem', letterSpacing: 0.5 }}>{`₹${item.price * item.qty}`}</Typography>
+              </CardContent>
+            </Card>
+            
+            {/* Delivery Address */}
+            <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+              <CardContent>
+                <Box display="flex" alignItems="center" mb={2}>
+                  <LocationOnIcon sx={{ mr: 1, color: 'primary.main' }} />
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Delivery Address</Typography>
                 </Box>
-              </Box>
-            ))}
-          </Box>
-        )}
-        <Box sx={{ mt: 2, mb: 2, px: 2, py: 1, bgcolor: '#e8f5e9', borderRadius: 2, boxShadow: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#388e3c', fontSize: '1.25rem', letterSpacing: 0.5 }}>
-            Grand Total: ₹{orderSummary.total}
-          </Typography>
-        </Box>
-      </Box>
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>Select Delivery Address</Typography>
-        {loading ? (
-          <CircularProgress size={24} />
-        ) : addresses.length === 0 ? (
-          <Box>
-            <Typography variant="body2">No addresses found. Please add an address in your profile.</Typography>
-            <Button variant="outlined" sx={{ mt: 2 }} onClick={() => navigate('/addresses')}>Add New Address</Button>
-          </Box>
-        ) : (
-          <Box>
-            <FormControl fullWidth>
-              <InputLabel id="address-select-label">Address</InputLabel>
-              <Select
-                labelId="address-select-label"
-                value={selectedAddress}
-                label="Address"
-                onChange={handleAddressChange}
-              >
-                {addresses.map((addr) => (
-                  <MenuItem key={addr.id} value={addr.id}>
-                    {addr.line1 || addr.door || ""}, {addr.city || addr.town || ""}, {addr.state || ""} - {addr.pincode || ""}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Button variant="outlined" sx={{ mt: 2 }} onClick={() => navigate('/addresses')}>Add New Address</Button>
-          </Box>
-        )}
-      </Box>
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>Proceed to Payment</Typography>
-        <Button
-          variant="contained"
-          className="place-order-btn"
-          fullWidth
-          disabled={loading || !selectedAddress}
-          onClick={handleProceedToPayment}
-        >
-          Proceed to Payment
-        </Button>
-      </Box>
+                
+                {loading ? (
+                  <Box display="flex" justifyContent="center" py={2}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : addresses.length === 0 ? (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 2 }}>No addresses found. Please add a delivery address to continue.</Typography>
+                    <Button 
+                      variant="contained" 
+                      startIcon={<AddIcon />}
+                      onClick={() => navigate('/addresses')}
+                      sx={{ fontWeight: 600 }}
+                    >
+                      Add New Address
+                    </Button>
+                  </Alert>
+                ) : (
+                  <Box>
+                    <FormControl fullWidth sx={{ mb: 2 }}>
+                      <InputLabel id="address-select-label">Select Delivery Address</InputLabel>
+                      <Select
+                        labelId="address-select-label"
+                        value={selectedAddress}
+                        label="Select Delivery Address"
+                        onChange={handleAddressChange}
+                      >
+                        {addresses.map((addr) => (
+                          <MenuItem key={addr.id} value={addr.id}>
+                            <Box>
+                              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                {addr.line1 || addr.door || ""}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {addr.city || addr.town || ""}, {addr.state || ""} - {addr.pincode || ""}
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    {selectedAddress && (
+                      <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2, mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Selected Address:</Typography>
+                        {(() => {
+                          const addr = addresses.find(a => a.id === selectedAddress);
+                          return addr ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {addr.line1 || addr.door || ""}, {addr.city || addr.town || ""}, {addr.state || ""} - {addr.pincode || ""}
+                            </Typography>
+                          ) : null;
+                        })()}
+                      </Box>
+                    )}
+                    
+                    <Button 
+                      variant="outlined" 
+                      startIcon={<AddIcon />}
+                      onClick={() => navigate('/addresses')}
+                      sx={{ fontWeight: 500 }}
+                    >
+                      Add New Address
+                    </Button>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          {/* Payment Summary */}
+          <Grid item xs={12} md={4}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, position: 'sticky', top: 20 }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Payment Summary</Typography>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2">Items ({orderSummary.items.length})</Typography>
+                    <Typography variant="body2">₹{orderSummary.total}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2">Delivery</Typography>
+                    <Typography variant="body2" color="success.main">FREE</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2">Taxes</Typography>
+                    <Typography variant="body2">Included</Typography>
+                  </Box>
+                </Box>
+                
+                <Divider sx={{ my: 2 }} />
+                
+                <Box display="flex" justifyContent="space-between" mb={3}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Total Amount</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    ₹{orderSummary.total}
+                  </Typography>
+                </Box>
+                
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="large"
+                  disabled={loading || !selectedAddress || paymentLoading}
+                  onClick={handleProceedToPayment}
+                  sx={{ 
+                    fontWeight: 600, 
+                    borderRadius: 2, 
+                    py: 1.5,
+                    fontSize: '1.1rem',
+                    mb: 2
+                  }}
+                >
+                  {paymentLoading ? <CircularProgress size={24} /> : 'Proceed to Payment'}
+                </Button>
+                
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', display: 'block' }}>
+                  By proceeding, you agree to our terms and conditions
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
     </Box>
   );
 };
+
 export default CheckoutPage;

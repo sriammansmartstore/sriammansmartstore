@@ -1,23 +1,22 @@
 import React, { useEffect, useState, useContext } from "react";
 import './ProductDetailsPage.css';
 import { useParams } from "react-router-dom";
-import { Box, Typography, Card, CardMedia, CardContent, Button, IconButton, Divider, Rating, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
-import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
-import FavoriteIcon from "@mui/icons-material/Favorite";
+import { Box, Typography, Card, CardMedia, CardContent, Button, IconButton, Divider, Rating, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Badge } from "@mui/material";
+import WishlistWidget from '../components/WishlistWidget';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { getDiscount } from "../utils/productUtils";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 import { doc, getDoc, setDoc, collection, addDoc, getDocs, orderBy, query } from "firebase/firestore";
-import { updateDoc, where } from "firebase/firestore";
+import { updateDoc, where, deleteDoc } from "firebase/firestore";
+import { getOptionKey, getPrimaryOption, fetchWishlistsWithProductOptions } from '../utils/wishlistUtils';
 import ProductCard from "../components/ProductCard.js"; // Explicit extension for compatibility
 
 const ProductDetailsPage = () => {
-  const [alreadyWishlistedName, setAlreadyWishlistedName] = useState("");
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  // wishlist state moved into WishlistWidget
   const { category, id } = useParams();
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] = useState();
   const [quantity, setQuantity] = useState(1);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [reviews, setReviews] = useState([]);
@@ -28,17 +27,7 @@ const ProductDetailsPage = () => {
   const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const { user, userDetails } = useContext(AuthContext) || {};
-  // Wishlist dialog and cart logic (copied from ProductCard)
-
-  const [wishlistDialogOpen, setWishlistDialogOpen] = useState(false);
-  const [wishlists, setWishlists] = useState([]);
-  const [newWishlistName, setNewWishlistName] = useState("");
-  const [selectingWishlist, setSelectingWishlist] = useState(false);
-  const [cartLoading, setCartLoading] = useState(false);
-  const [cartAdded, setCartAdded] = useState(false);
-  const [wishlistLoading, setWishlistLoading] = useState(false);
-  const [wishlistAdded, setWishlistAdded] = useState(false);
-
+  // wishlist logic extracted to WishlistWidget
   // Add to Cart logic (like ProductCard)
   const handleAddToCartClick = (e) => {
     e.preventDefault();
@@ -110,123 +99,7 @@ const ProductDetailsPage = () => {
     setCartLoading(false);
   };
 
-  // Wishlist dialog logic (like ProductCard)
-  const fetchWishlists = async () => {
-    if (!user) return setWishlists([]);
-    try {
-      const colRef = collection(db, "users", user.uid, "wishlists");
-      const snapshot = await getDocs(colRef);
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setWishlists(fetched);
-    } catch (err) {
-      setWishlists([]);
-    }
-  };
-  useEffect(() => { fetchWishlists(); }, [user, wishlistDialogOpen]);
-  useEffect(() => {
-    const checkWishlisted = async () => {
-      if (!user || !product?.id) {
-        setIsWishlisted(false);
-        setAlreadyWishlistedName("");
-        return;
-      }
-      try {
-        const colRef = collection(db, "users", user.uid, "wishlists");
-        const snapshot = await getDocs(colRef);
-        let found = false;
-        let foundName = "";
-        for (const wl of snapshot.docs) {
-          const prodRef = collection(db, "users", user.uid, "wishlists", wl.id, "products");
-          const prodSnap = await getDocs(prodRef);
-          if (prodSnap.docs.some(d => d.id === product.id)) {
-            found = true;
-            foundName = wl.data().name || wl.id;
-            break;
-          }
-        }
-        setIsWishlisted(found);
-        setAlreadyWishlistedName(found ? foundName : "");
-      } catch {
-        setIsWishlisted(false);
-        setAlreadyWishlistedName("");
-      }
-    };
-    checkWishlisted();
-  }, [user, product?.id, wishlistDialogOpen]);
-
-  const handleWishlistIconClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!user) return alert("Please login to use wishlists.");
-    if (isWishlisted && alreadyWishlistedName) {
-      alert(`Product already in wishlist: ${alreadyWishlistedName}`);
-      return;
-    }
-    setWishlistDialogOpen(true);
-    setSelectingWishlist(true);
-  };
-
-  const handleSelectWishlist = async (wishlistId) => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, "users", user.uid, "wishlists", wishlistId, "products", product.id), {
-        ...product,
-        addedAt: new Date().toISOString(),
-      });
-      setWishlistDialogOpen(false);
-      setWishlistAdded(true);
-      setTimeout(() => setWishlistAdded(false), 1500);
-    } catch (err) {
-      alert("Failed to add to wishlist.");
-    }
-  };
-
-  const handleCreateWishlist = async () => {
-    if (!user || !newWishlistName.trim()) return;
-    try {
-      const colRef = collection(db, "users", user.uid, "wishlists");
-      // Add avatar for new wishlists (optional, can customize)
-      const docRef = await addDoc(colRef, {
-        name: newWishlistName.trim(),
-        createdAt: new Date().toISOString(),
-        avatar: { type: "icon", value: "⭐" }
-      });
-      await setDoc(doc(db, "users", user.uid, "wishlists", docRef.id, "products", product.id), {
-        ...product,
-        addedAt: new Date().toISOString(),
-      });
-      setWishlistDialogOpen(false);
-      setNewWishlistName("");
-      setWishlistAdded(true);
-      setTimeout(() => setWishlistAdded(false), 1500);
-    } catch (err) {
-      alert("Failed to create wishlist.");
-    }
-  };
-
-  const handleAddToGeneralWishlist = async () => {
-    console.log('Add to General Wishlist button clicked');
-    if (!user) return;
-    try {
-      const generalWishlistRef = doc(db, "users", user.uid, "wishlists", "general");
-      await setDoc(generalWishlistRef, {
-        name: "General",
-        createdAt: new Date().toISOString(),
-        avatar: { type: "icon", value: "⭐" }
-      }, { merge: true });
-      console.log('General wishlist created or updated:', generalWishlistRef.path);
-      await setDoc(doc(db, "users", user.uid, "wishlists", "general", "products", product.id), {
-        ...product,
-        addedAt: new Date().toISOString(),
-      });
-      console.log('Product added to General wishlist:', product.id);
-      setWishlistDialogOpen(false);
-      setWishlistAdded(true);
-      setTimeout(() => setWishlistAdded(false), 1500);
-    } catch (err) {
-      alert("Failed to add to general wishlist. " + (err?.message || ""));
-    }
-  };
+  // wishlist logic replaced by WishlistWidget
 
   useEffect(() => {
     // Fetch product by id from Firestore (modular v9 syntax)
@@ -278,39 +151,39 @@ const ProductDetailsPage = () => {
     };
     fetchOtherProducts();
   }, [category, id]);
-
-  // Calculate average rating
-  const avgRating = reviews.length ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : null;
-
-  if (product === null) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Product not found.</Typography>;
-  if (!product) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading...</Typography>;
-  // Option selection logic
-  const options = Array.isArray(product.options) && product.options.length > 0 ? product.options : [{
-    mrp: product.mrp,
-    sellingPrice: product.sellingPrice,
-    specialPrice: product.specialPrice,
-    unit: product.unit,
-    unitSize: product.unitSize,
-    quantity: product.quantity
+  // derived values needed for render
+  const options = Array.isArray(product?.options) && product.options.length > 0 ? product.options : [{
+    mrp: product?.mrp,
+    sellingPrice: product?.sellingPrice,
+    specialPrice: product?.specialPrice,
+    unit: product?.unit,
+    unitSize: product?.unitSize,
+    quantity: product?.quantity
   }];
   const selectedOption = options[selectedOptionIdx] || options[0];
   const discount = getDiscount(selectedOption.mrp, selectedOption.sellingPrice);
+  const avgRating = reviews.length ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : null;
+  const [cartLoading, setCartLoading] = useState(false);
+  const [cartAdded, setCartAdded] = useState(false);
+
+  // Guard: product undefined => still loading; product === null => not found
+  if (product === undefined) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading...</Typography>;
+  if (product === null) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Product not found.</Typography>;
 
   return (
-  <Box className="product-details-root" sx={{ maxWidth: { xs: '100%', sm: 700 }, mx: "auto", mt: 0, p: { xs: 0.5, sm: 2 }, boxShadow: 3, borderRadius: { xs: 0, sm: 3 }, bgcolor: "#fff" }}>
-  <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: { xs: 0, sm: 3 } }}>
+    <Box className="product-details-root" sx={{ maxWidth: { xs: '100%', sm: 700 }, mx: "auto", mt: 0, p: { xs: 0.5, sm: 2 }, boxShadow: 3, borderRadius: { xs: 0, sm: 3 }, bgcolor: "#fff" }}>
+      <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: { xs: 0, sm: 3 } }}>
         {/* Image gallery */}
         <Box sx={{ position: 'relative', width: { xs: '100%', md: 300 }, minHeight: { xs: 220, sm: 300 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: 'inherit' }, p: { xs: 1, sm: 0 } }}>
           <Box sx={{ position: 'relative', width: '100%' }}>
             <CardMedia
               component="img"
-              image={product.imageUrls?.[selectedImageIdx] || product.imageUrls?.[0] || "https://via.placeholder.com/300"}
-              alt={product.name}
-              sx={{ width: '100%', height: { xs: 180, sm: 220 }, objectFit: "cover", borderRadius: 2 }}
+              image={product?.imageUrls?.[selectedImageIdx] || product?.imageUrls?.[0] || "https://via.placeholder.com/300"}
+              alt={product?.name}
+              sx={{ width: '100%', height: { xs: 280, sm: 380 }, objectFit: "cover", borderRadius: 2 }}
             />
-            {/* ...existing code... */}
             {/* Thumbnails inside image at bottom */}
-            {Array.isArray(product.imageUrls) && product.imageUrls.length > 1 && (
+            {Array.isArray(product?.imageUrls) && product.imageUrls.length > 1 && (
               <Box className="horizontal-scroll" sx={{ position: 'absolute', left: 0, bottom: 0, width: '100%', display: 'flex', gap: 1, justifyContent: 'center', overflowX: 'auto', pb: 0.5, zIndex: 1, background: 'rgba(255,255,255,0.7)', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}>
                 {product.imageUrls.map((img, idx) => (
                   <CardMedia
@@ -325,64 +198,11 @@ const ProductDetailsPage = () => {
               </Box>
             )}
           </Box>
-          {/* Wishlist button at top right */}
-          <IconButton
-            sx={{ position: 'absolute', top: 12, right: 12, bgcolor: '#fff', boxShadow: 2, zIndex: 2 }}
-            onClick={handleWishlistIconClick}
-            disabled={wishlistLoading}
-          >
-            {isWishlisted || wishlistAdded
-              ? <FavoriteIcon sx={{ color: '#d32f2f' }} />
-              : <FavoriteBorderIcon sx={{ color: '#d32f2f' }} />}
-          </IconButton>
-
-          {/* Wishlist Dialog like ProductCard */}
-          <Dialog open={wishlistDialogOpen} onClose={() => { setWishlistDialogOpen(false); setSelectingWishlist(false); setNewWishlistName(""); }} maxWidth="xs" fullWidth>
-            {console.log('Wishlist Dialog rendered, wishlists:', wishlists, 'selectingWishlist:', selectingWishlist)}
-            <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.2rem', pb: 1 }}>Select Wishlist</DialogTitle>
-            <DialogContent sx={{ px: 2, py: 1 }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {wishlists.length === 0 ? (
-                  <>
-                    <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>No wishlists found.</Typography>
-                    <Button variant="contained" color="primary" sx={{ mb: 2, borderRadius: 2 }} fullWidth onClick={handleAddToGeneralWishlist}>Add to General Wishlist</Button>
-                    <Button variant="outlined" color="success" sx={{ borderRadius: 2 }} fullWidth onClick={() => setSelectingWishlist('create')}>Create New Wishlist</Button>
-                    {selectingWishlist === 'create' && (
-                      <Box sx={{ mt: 2 }}>
-                        <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
-                        <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={handleCreateWishlist}>Create & Add</Button>
-                      </Box>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Typography variant="body2" sx={{ mb: 1, textAlign: 'center', fontWeight: 500 }}>Choose a wishlist to add this product:</Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      {wishlists.map(wl => (
-                        <Box key={wl.id} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 1, transition: '0.2s', '&:hover': { boxShadow: 3, borderColor: '#43a047', background: '#f9fff9' } }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{wl.name || 'Unnamed Wishlist'}</Typography>
-                          <Button variant="contained" color="success" size="small" sx={{ borderRadius: 2, ml: 2 }} onClick={() => handleSelectWishlist(wl.id)}>Add</Button>
-                        </Box>
-                      ))}
-                    </Box>
-                    <Button variant="outlined" color="success" sx={{ mt: 2, borderRadius: 2 }} fullWidth onClick={() => setSelectingWishlist('create')}>Create New Wishlist</Button>
-                    <Button variant="contained" color="primary" sx={{ mt: 1, borderRadius: 2 }} fullWidth onClick={handleAddToGeneralWishlist}>Add to General Wishlist</Button>
-                    {selectingWishlist === 'create' && (
-                      <Box sx={{ mt: 2 }}>
-                        <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
-                        <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={handleCreateWishlist}>Create & Add</Button>
-                      </Box>
-                    )}
-                  </>
-                )}
-              </Box>
-            </DialogContent>
-            <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
-              <Button onClick={() => { setWishlistDialogOpen(false); setSelectingWishlist(false); setNewWishlistName(""); }} color="inherit" sx={{ borderRadius: 2 }}>Cancel</Button>
-            </DialogActions>
-          </Dialog>
+          {/* Wishlist widget at top right of image area */}
+          <WishlistWidget product={product} selectedOption={selectedOption} onAdd={() => { /* noop */ }} />
         </Box>
-  <CardContent sx={{ flex: 1, px: { xs: 0.5, sm: 2 }, py: { xs: 1, sm: 2 } }}>
+
+        <CardContent sx={{ flex: 1, px: { xs: 0.5, sm: 2 }, py: { xs: 1, sm: 2 } }}>
           <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: '1.2rem', sm: '2rem' }, wordBreak: 'break-word' }}>{product.name}</Typography>
           {/* Star ratings below product name */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, mt: 0.5 }}>
@@ -441,6 +261,16 @@ const ProductDetailsPage = () => {
   )}
 </Box>
 {/* ...existing code... */}
+<Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+  <Typography variant="body2" sx={{ fontWeight: 700, color: '#555', mr: 1 }}>Qty</Typography>
+  <IconButton size="small" onClick={e => { e.stopPropagation(); setQuantity(q => Math.max(1, q - 1)); }} sx={{ color: '#388e3c', border: '1.5px solid #388e3c', borderRadius: 2, background: '#fff', '&:hover': { background: '#e0ffe6' }, mx: 0.5 }}>
+    <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>-</span>
+  </IconButton>
+  <Typography variant="h6" sx={{ mx: 1, minWidth: 28, textAlign: 'center', fontWeight: 700, color: '#222', letterSpacing: 1 }}>{quantity}</Typography>
+  <IconButton size="small" onClick={e => { e.stopPropagation(); setQuantity(q => q + 1); }} sx={{ color: '#388e3c', border: '1.5px solid #388e3c', borderRadius: 2, background: '#fff', '&:hover': { background: '#e0ffe6' }, mx: 0.5 }}>
+    <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>+</span>
+  </IconButton>
+</Box>
 <Button
   variant="contained"
   startIcon={<AddShoppingCartIcon />}
@@ -449,16 +279,6 @@ const ProductDetailsPage = () => {
   disabled={cartLoading || product.outOfStock}
 >
   <span>{cartAdded ? 'Added!' : 'Add to Cart'}</span>
-  <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: '#fff', borderRadius: 2, px: 1, py: 0.5, ml: 2 }}>
-    <Typography variant="body2" sx={{ fontWeight: 700, color: '#555', mr: 1 }}>Qty</Typography>
-    <IconButton size="small" onClick={e => { e.stopPropagation(); setQuantity(q => Math.max(1, q - 1)); }} sx={{ color: '#388e3c', border: '1.5px solid #388e3c', borderRadius: 2, background: '#fff', '&:hover': { background: '#e0ffe6' }, mx: 0.5 }}>
-      <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>-</span>
-    </IconButton>
-    <Typography variant="h6" sx={{ mx: 1, minWidth: 28, textAlign: 'center', fontWeight: 700, color: '#222', letterSpacing: 1 }}>{quantity}</Typography>
-    <IconButton size="small" onClick={e => { e.stopPropagation(); setQuantity(q => q + 1); }} sx={{ color: '#388e3c', border: '1.5px solid #388e3c', borderRadius: 2, background: '#fff', '&:hover': { background: '#e0ffe6' }, mx: 0.5 }}>
-      <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>+</span>
-    </IconButton>
-  </Box>
 </Button>
           {/* Description with Read More */}
           <Box sx={{ mt: 2 }}>

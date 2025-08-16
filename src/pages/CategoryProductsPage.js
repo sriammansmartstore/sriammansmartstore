@@ -12,7 +12,6 @@ const CategoryProductsPage = () => {
   const decodedCategoryName = decodeURIComponent(categoryName);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [wishlist, setWishlist] = useState([]);
   const [cart, setCart] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const { user } = useContext(AuthContext);
@@ -36,20 +35,6 @@ const CategoryProductsPage = () => {
     fetchProducts();
   }, [decodedCategoryName]);
 
-  // ...existing code...
-
-  const handleAddToWishlist = async (product) => {
-    if (!user) return alert("Please login to add to wishlist.");
-    try {
-      await setDoc(doc(db, "users", user.uid, "wishlist", product.id), {
-        ...product,
-      });
-      setWishlist(prev => prev.some(item => item.id === product.id) ? prev : [...prev, product]);
-    } catch (err) {
-      alert("Failed to add to wishlist.");
-    }
-  };
-
   return (
     <Box className="home-root">
       <Typography className="section-title" variant="h6">
@@ -68,7 +53,6 @@ const CategoryProductsPage = () => {
               sx={{ display: "flex", flexBasis: "45%", maxWidth: "45%", flexGrow: 0 }}>
               <ProductCard 
                 product={product} 
-                onAddToWishlist={handleAddToWishlist}
               />
             </Grid>
           ))}

@@ -6,18 +6,13 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import "@fontsource/montserrat";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
+import { NotificationProvider } from './components/NotificationProvider';
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Typography from "@mui/material/Typography";
-// import BottomNavigation from "@mui/material/BottomNavigation";
-// import BottomNavigationAction from "@mui/material/BottomNavigationAction";
-// import HomeIcon from "@mui/icons-material/Home";
-// import CategoryIcon from "@mui/icons-material/Category";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-// import FavoriteIcon from "@mui/icons-material/Favorite";
-// import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import Badge from "@mui/material/Badge";
 import Drawer from "@mui/material/Drawer";
@@ -92,6 +87,7 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider theme={theme}>
+        <NotificationProvider>
         <CssBaseline />
         <Router>
           <AppBar position="fixed" sx={{ top: 0, background: 'white' }}>
@@ -162,6 +158,7 @@ function App() {
           </div>
           <BottomNavbar />
         </Router>
+        </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>
   );

@@ -4,11 +4,11 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDTzovF1RChmczvRXTNtY9-i-cOTI2JAuQ",
-  authDomain: "sri-amman-smart-store.firebaseapp.com",
-  projectId: "sri-amman-smart-store",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyDTzovF1RChmczvRXTNtY9-i-cOTI2JAuQ",
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "sri-amman-smart-store.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "sri-amman-smart-store",
   storageBucket: "sri-amman-smart-store.firebasestorage.app",
-  messagingSenderId: "1018585256480",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_PROJECT_NUMBER || "1018585256480",
   appId: "1:1018585256480:web:1312d2d636b0672098a245",
   measurementId: "G-7D1TG59XVM"
 };

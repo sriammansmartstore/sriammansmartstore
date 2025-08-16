@@ -1,13 +1,22 @@
 import React, { useState, useEffect, useContext } from "react";
 import {
-  Card, CardMedia, CardContent, Typography, IconButton, Button, Box,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField
+  Card,
+  CardMedia,
+  CardContent,
+  Typography,
+  IconButton,
+  Button,
+  Box,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from "@mui/material";
-import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
-import FavoriteIcon from "@mui/icons-material/Favorite";
+import WishlistWidget from './WishlistWidget';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
-import RemoveIcon from '@mui/icons-material/Remove';
-import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from "@mui/icons-material/Remove";
+import AddIcon from "@mui/icons-material/Add";
 import { Link } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
@@ -15,7 +24,6 @@ import { updateDoc } from "firebase/firestore";
 import { query, where } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import "./../pages/HomePage.css"; // Ensure the CSS is applied
-
 
 // Helper to get the middle option (or first if only one)
 const getMiddleOption = (options) => {
@@ -33,14 +41,9 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   // Prevent multiple rapid cart updates
   const pendingQuantityRef = React.useRef(null);
   const [updatingQuantity, setUpdatingQuantity] = useState(false);
-  const [alreadyWishlistedName, setAlreadyWishlistedName] = useState("");
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  // wishlist state moved to WishlistWidget
   const [quantity, setQuantity] = useState(1);
   const [showQuantity, setShowQuantity] = useState(false);
-  const [wishlistDialogOpen, setWishlistDialogOpen] = useState(false);
-  const [wishlists, setWishlists] = useState([]);
-  const [newWishlistName, setNewWishlistName] = useState("");
-  const [selectingWishlist, setSelectingWishlist] = useState(false);
   // Pick the middle option for display if available
   const hasMultipleOptions = Array.isArray(product.options) && product.options.length > 1;
   const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
@@ -48,41 +51,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const discount = getDiscount(option.mrp, option.sellingPrice);
   const { user } = useContext(AuthContext);
 
-  useEffect(() => {
-    const fetchWishlists = async () => {
-      if (!user) {
-        setWishlists([]);
-        setIsWishlisted(false);
-        setAlreadyWishlistedName("");
-        return;
-      }
-      try {
-        const colRef = collection(db, "users", user.uid, "wishlists");
-        const snapshot = await getDocs(colRef);
-        const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setWishlists(fetched);
-        // Check if product is in any wishlist
-        let found = false;
-        let foundName = "";
-        for (const wl of snapshot.docs) {
-          const prodRef = collection(db, "users", user.uid, "wishlists", wl.id, "products");
-          const prodSnap = await getDocs(prodRef);
-          if (prodSnap.docs.some(d => d.id === product.id)) {
-            found = true;
-            foundName = wl.data().name || wl.id;
-            break;
-          }
-        }
-        setIsWishlisted(found);
-        setAlreadyWishlistedName(found ? foundName : "");
-      } catch (err) {
-        setWishlists([]);
-        setIsWishlisted(false);
-        setAlreadyWishlistedName("");
-      }
-    };
-    fetchWishlists();
-  }, [user, wishlistDialogOpen, product.id]);
+  // wishlist fetching moved into WishlistWidget
 
   const [showOptionsDialog, setShowOptionsDialog] = useState(false);
   const [addQuantity, setAddQuantity] = useState(1);
@@ -148,76 +117,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
     }
   };
 
-  const handleWishlistIconClick = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!user) return alert("Please login to use wishlists.");
-    if (isWishlisted && alreadyWishlistedName) {
-      alert(`Product already in wishlist: ${alreadyWishlistedName}`);
-      return;
-    }
-    setWishlistDialogOpen(true);
-    setSelectingWishlist(true);
-  };
-
-  const handleSelectWishlist = async (wishlistId) => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, "users", user.uid, "wishlists", wishlistId, "products", product.id), {
-        ...product,
-        addedAt: new Date().toISOString(),
-      });
-      setWishlistDialogOpen(false);
-      if (onAddToWishlist) onAddToWishlist(product);
-    } catch (err) {
-      alert("Failed to add to wishlist.");
-    }
-  };
-
-  const handleCreateWishlist = async () => {
-    if (!user || !newWishlistName.trim()) return;
-    try {
-      const colRef = collection(db, "users", user.uid, "wishlists");
-      // Add avatar for new wishlists (optional, can customize)
-      const docRef = await addDoc(colRef, {
-        name: newWishlistName.trim(),
-        createdAt: new Date().toISOString(),
-        avatar: { type: "icon", value: "⭐" }
-      });
-      await setDoc(doc(db, "users", user.uid, "wishlists", docRef.id, "products", product.id), {
-        ...product,
-        addedAt: new Date().toISOString(),
-      });
-      setWishlistDialogOpen(false);
-      setNewWishlistName("");
-      if (onAddToWishlist) onAddToWishlist(product);
-    } catch (err) {
-      alert("Failed to create wishlist.");
-    }
-  };
-
-  const handleAddToGeneralWishlist = async () => {
-    console.log('Add to General Wishlist button clicked');
-    if (!user) return;
-    try {
-      const generalWishlistRef = doc(db, "users", user.uid, "wishlists", "general");
-      await setDoc(generalWishlistRef, {
-        name: "General",
-        createdAt: new Date().toISOString(),
-        avatar: { type: "icon", value: "⭐" }
-      }, { merge: true });
-      console.log('General wishlist created or updated:', generalWishlistRef.path);
-      await setDoc(doc(db, "users", user.uid, "wishlists", "general", "products", product.id), {
-        ...product,
-        addedAt: new Date().toISOString(),
-      });
-      console.log('Product added to General wishlist:', product.id);
-      setWishlistDialogOpen(false);
-      if (onAddToWishlist) onAddToWishlist(product);
-    } catch (err) {
-      alert("Failed to add to general wishlist. " + (err?.message || ""));
-    }
-  };
+  // wishlist handlers moved to WishlistWidget
 
   return (
     <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'hidden', maxWidth: 180, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
@@ -261,17 +161,8 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           </Box>
         </Box>
       )}
-      {/* Wishlist Icon */}
-      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
-        <IconButton
-          onClick={handleWishlistIconClick}
-          sx={{ p: 0.5, background: '#fff', boxShadow: 1, borderRadius: '50%' }}
-        >
-          {isWishlisted
-            ? <FavoriteIcon fontSize="small" sx={{ color: '#d32f2f' }} />
-            : <FavoriteBorderIcon fontSize="small" sx={{ color: '#d32f2f' }} />}
-        </IconButton>
-      </Box>
+  {/* Wishlist widget */}
+  <WishlistWidget product={product} selectedOption={option} onAdd={onAddToWishlist} />
       <Link to={`/product/${product.category}/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' }}>
         <Box sx={{ width: '100%', minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', pt: 0, mt: 0, mb: 0 }}>
           <CardMedia
@@ -395,50 +286,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       </Dialog>
       </Box>
 
-      {/* Wishlist Dialog */}
-      <Dialog open={wishlistDialogOpen} onClose={() => setWishlistDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.2rem', pb: 1 }}>Select Wishlist</DialogTitle>
-        <DialogContent sx={{ px: 2, py: 1 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {wishlists.length === 0 ? (
-              <>
-                <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>No wishlists found.</Typography>
-                <Button variant="contained" color="primary" sx={{ mb: 2, borderRadius: 2 }} fullWidth onClick={handleAddToGeneralWishlist}>Add to General Wishlist</Button>
-                <Button variant="outlined" color="success" sx={{ borderRadius: 2 }} fullWidth onClick={() => setSelectingWishlist('create')}>Create New Wishlist</Button>
-                {selectingWishlist === 'create' && (
-                  <Box sx={{ mt: 2 }}>
-                    <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
-                    <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={handleCreateWishlist}>Create & Add</Button>
-                  </Box>
-                )}
-              </>
-            ) : (
-              <>
-                <Typography variant="body2" sx={{ mb: 1, textAlign: 'center', fontWeight: 500 }}>Choose a wishlist to add this product:</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {wishlists.map(wl => (
-                    <Box key={wl.id} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 1, transition: '0.2s', '&:hover': { boxShadow: 3, borderColor: '#43a047', background: '#f9fff9' } }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{wl.name || 'Unnamed Wishlist'}</Typography>
-                      <Button variant="contained" color="success" size="small" sx={{ borderRadius: 2, ml: 2 }} onClick={() => handleSelectWishlist(wl.id)}>Add</Button>
-                    </Box>
-                  ))}
-                </Box>
-                <Button variant="outlined" color="success" sx={{ mt: 2, borderRadius: 2 }} fullWidth onClick={() => setSelectingWishlist('create')}>Create New Wishlist</Button>
-                <Button variant="contained" color="primary" sx={{ mt: 1, borderRadius: 2 }} fullWidth onClick={handleAddToGeneralWishlist}>Add to General Wishlist</Button>
-                {selectingWishlist === 'create' && (
-                  <Box sx={{ mt: 2 }}>
-                    <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
-                    <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={handleCreateWishlist}>Create & Add</Button>
-                  </Box>
-                )}
-              </>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
-          <Button onClick={() => { setWishlistDialogOpen(false); setSelectingWishlist(false); setNewWishlistName(""); }} color="inherit" sx={{ borderRadius: 2 }}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
+  {/* wishlist UI moved to WishlistWidget */}
     </Card>
   );
 };

@@ -43,7 +43,6 @@ const HomePage = () => {
   const [area, setArea] = useState("");
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [wishlist, setWishlist] = useState([]);
   const [cart, setCart] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -218,20 +217,6 @@ const HomePage = () => {
 
   const filteredProducts = getFilteredProducts();
 
-  const handleAddToWishlist = async (product) => {
-    if (!user) return alert("Please login to add to wishlist.");
-    try {
-      await setDoc(doc(db, "users", user.uid, "wishlist", product.id), {
-        ...product,
-      });
-      setWishlist(prev => prev.some(item => item.id === product.id) ? prev : [...prev, product]);
-    } catch (err) {
-      alert("Failed to add to wishlist.");
-    }
-  };
-
-  // ...existing code...
-
   return (
     <Box className="home-root" sx={{ position: 'relative', pb: 10 }}>
       
@@ -291,7 +276,6 @@ const HomePage = () => {
               }}>
               <ProductCard
                 product={product}
-                onAddToWishlist={handleAddToWishlist}
               />
             </Grid>
           ))}
