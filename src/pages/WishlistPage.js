@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
-import { Box, Typography, IconButton, Fab, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Menu, MenuItem, Avatar, CircularProgress } from "@mui/material";
+import { Box, Typography, IconButton, Fab, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Menu, MenuItem, Avatar, CircularProgress, Slide, Chip } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +23,11 @@ const WishlistPage = () => {
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [avatarTargetId, setAvatarTargetId] = useState(null);
   const [selectedAvatar, setSelectedAvatar] = useState(null);
+
+  const Transition = React.useMemo(() =>
+    React.forwardRef(function Transition(props, ref) {
+      return <Slide direction="up" ref={ref} {...props} />;
+    }), []);
 
   useEffect(() => {
     if (!user) return;
@@ -79,26 +84,37 @@ const WishlistPage = () => {
   };
 
   return (
-    <Box sx={{ px: { xs: 1, md: 3 }, py: 3, maxWidth: 900, mx: 'auto', minHeight: '100vh', backgroundColor: 'background.paper' }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>My Wishlists</Typography>
+    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 3, maxWidth: 980, mx: 'auto', minHeight: '100vh', backgroundColor: 'background.paper' }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>Your Wishlists</Typography>
+        {!loading && wishlists.length > 0 && (
+          <Chip 
+            label={`${wishlists.length} list${wishlists.length > 1 ? 's' : ''}`} 
+            color="primary" 
+            size="small" 
+          />
+        )}
+      </Box>
       {loading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
           <CircularProgress />
         </Box>
       ) : wishlists.length === 0 ? (
-        <Typography color="text.secondary" align="center" sx={{ mt: 8 }}>
-          You have no wishlists yet.
-        </Typography>
+        <Box sx={{ mt: 8, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No wishlists yet</Typography>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>Create your first wishlist to save products for later.</Typography>
+          <Button variant="contained" color="success" onClick={() => setCreateDialogOpen(true)} sx={{ borderRadius: 2 }}>Create Wishlist</Button>
+        </Box>
       ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2.5 }}>
           {wishlists.map(wl => (
-            <Box key={wl.id} sx={{ p: 2, borderRadius: 2, boxShadow: 1, background: 'white', display: 'flex', alignItems: 'center', cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 3, background: '#f5faff' } }} onClick={() => navigate(`/wishlist/${wl.id}`)}>
+            <Box key={wl.id} sx={{ p: 2, borderRadius: 3, boxShadow: 2, background: 'white', display: 'flex', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s ease', border: '1px solid', borderColor: 'divider', '&:hover': { boxShadow: 6, transform: 'translateY(-2px)', background: '#f8fbff' } }} onClick={() => navigate(`/wishlist/${wl.id}`)}>
               {/* Avatar with custom icon/gradient/emoji if set */}
               {wl.avatar ? (
                 <Avatar
                   sx={{
                     mr: 2,
-                    fontSize: 28,
+                    fontSize: 26,
                     bgcolor: wl.avatar.type === 'gradient' ? undefined : '#1976d2',
                     background: wl.avatar.type === 'gradient' ? wl.avatar.value : undefined,
                   }}
@@ -108,15 +124,15 @@ const WishlistPage = () => {
               ) : (
                 <Avatar sx={{ bgcolor: '#1976d2', mr: 2 }}>{(wl.name || wl.id)[0]?.toUpperCase()}</Avatar>
               )}
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, flex: 1 }}>{wl.name || wl.id}</Typography>
-              <IconButton onClick={e => { e.stopPropagation(); handleMenuOpen(e, wl.id); }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>{wl.name || wl.id}</Typography>
+              <IconButton onClick={e => { e.stopPropagation(); handleMenuOpen(e, wl.id); }} sx={{ color: 'text.secondary' }}>
                 <MoreVertIcon />
               </IconButton>
             </Box>
           ))}
         </Box>
       )}
-      <Fab color="primary" sx={{ position: 'fixed', bottom: 80, right: 24, zIndex: 100 }} onClick={() => setCreateDialogOpen(true)}>
+      <Fab color="success" sx={{ position: 'fixed', bottom: 88, right: 20, zIndex: 1200, boxShadow: 6 }} onClick={() => setCreateDialogOpen(true)}>
         <AddIcon />
       </Fab>
       {/* Menu for each wishlist */}
@@ -126,30 +142,30 @@ const WishlistPage = () => {
         <MenuItem onClick={() => { setDeleteDialogOpen(true); handleMenuClose(); }}>Delete</MenuItem>
       </Menu>
       {/* Create Wishlist Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create New Wishlist</DialogTitle>
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} fullWidth maxWidth="xs" TransitionComponent={Transition} PaperProps={{ elevation: 8, sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 800, textAlign: 'center', pb: 1 }}>Create New Wishlist</DialogTitle>
         <DialogContent>
-          <TextField fullWidth label="Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} variant="outlined" autoFocus sx={{ mt: 2 }} />
+          <TextField fullWidth label="Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} variant="outlined" autoFocus sx={{ mt: 2 }} inputProps={{ maxLength: 40 }} />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!newWishlistName.trim()}>Create</Button>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button fullWidth variant="text" onClick={() => setCreateDialogOpen(false)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+          <Button fullWidth variant="contained" color="success" onClick={handleCreate} disabled={!newWishlistName.trim()} sx={{ borderRadius: 2 }}>Create</Button>
         </DialogActions>
       </Dialog>
       {/* Rename Dialog */}
-      <Dialog open={renameDialogOpen} onClose={() => { setRenameDialogOpen(false); setMenuTargetId(null); }} fullWidth maxWidth="sm">
-        <DialogTitle>Rename Wishlist</DialogTitle>
+      <Dialog open={renameDialogOpen} onClose={() => { setRenameDialogOpen(false); setMenuTargetId(null); }} fullWidth maxWidth="xs" TransitionComponent={Transition} PaperProps={{ elevation: 8, sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 800, textAlign: 'center', pb: 1 }}>Rename Wishlist</DialogTitle>
         <DialogContent>
-          <TextField fullWidth label="Wishlist Name" value={renameWishlistName} onChange={e => setRenameWishlistName(e.target.value)} variant="outlined" autoFocus sx={{ mt: 2 }} />
+          <TextField fullWidth label="Wishlist Name" value={renameWishlistName} onChange={e => setRenameWishlistName(e.target.value)} variant="outlined" autoFocus sx={{ mt: 2 }} inputProps={{ maxLength: 40 }} />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRenameDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleRename} disabled={!renameWishlistName.trim()}>Rename</Button>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button fullWidth variant="text" onClick={() => setRenameDialogOpen(false)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+          <Button fullWidth variant="contained" color="success" onClick={handleRename} disabled={!renameWishlistName.trim()} sx={{ borderRadius: 2 }}>Rename</Button>
         </DialogActions>
       </Dialog>
       {/* Avatar Dialog */}
-      <Dialog open={avatarDialogOpen} onClose={() => { setAvatarDialogOpen(false); setAvatarTargetId(null); setSelectedAvatar(null); }} fullWidth maxWidth="xs">
-        <DialogTitle>Choose an Avatar</DialogTitle>
+      <Dialog open={avatarDialogOpen} onClose={() => { setAvatarDialogOpen(false); setAvatarTargetId(null); setSelectedAvatar(null); }} fullWidth maxWidth="xs" TransitionComponent={Transition} PaperProps={{ elevation: 8, sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 800, textAlign: 'center', pb: 1 }}>Choose an Avatar</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', mt: 1 }}>
             {[
@@ -185,9 +201,9 @@ const WishlistPage = () => {
             ))}
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setAvatarDialogOpen(false); setAvatarTargetId(null); setSelectedAvatar(null); }}>Cancel</Button>
-          <Button variant="contained" onClick={async () => {
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button fullWidth variant="text" onClick={() => { setAvatarDialogOpen(false); setAvatarTargetId(null); setSelectedAvatar(null); }} sx={{ color: 'text.secondary' }}>Cancel</Button>
+          <Button fullWidth variant="contained" color="success" onClick={async () => {
             if (!user || !avatarTargetId || !selectedAvatar) return;
             const avatarObj = JSON.parse(selectedAvatar);
             await updateDoc(doc(db, "users", user.uid, "wishlists", avatarTargetId), { avatar: avatarObj });
@@ -196,18 +212,18 @@ const WishlistPage = () => {
             setAvatarDialogOpen(false);
             setAvatarTargetId(null);
             setSelectedAvatar(null);
-          }} disabled={!selectedAvatar}>Save</Button>
+          }} disabled={!selectedAvatar} sx={{ borderRadius: 2 }}>Save</Button>
         </DialogActions>
       </Dialog>
       {/* Delete Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => { setDeleteDialogOpen(false); setMenuTargetId(null); }} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Wishlist</DialogTitle>
+      <Dialog open={deleteDialogOpen} onClose={() => { setDeleteDialogOpen(false); setMenuTargetId(null); }} maxWidth="xs" fullWidth TransitionComponent={Transition} PaperProps={{ elevation: 8, sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 800, textAlign: 'center', pb: 1 }}>Delete Wishlist</DialogTitle>
         <DialogContent>
-          <Typography>Are you sure you want to delete this wishlist?</Typography>
+          <Typography align="center">Are you sure you want to delete this wishlist?</Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleDelete}>Delete</Button>
+        <DialogActions sx={{ px: 2, pb: 2 }}>
+          <Button fullWidth variant="text" onClick={() => setDeleteDialogOpen(false)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+          <Button fullWidth variant="contained" color="error" onClick={handleDelete} sx={{ borderRadius: 2 }}>Delete</Button>
         </DialogActions>
       </Dialog>
     </Box>

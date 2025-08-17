@@ -179,7 +179,7 @@ const MorePage = ({ onClose }) => {
           </Box>
         </>
       ) : (
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: 2 }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', px: 2, py: 2 }}>
           <Typography variant="h6" color="primary" fontWeight={700} sx={{ mb: 2, textAlign: 'center' }}>
             Login to see all options
           </Typography>

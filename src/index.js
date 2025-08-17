@@ -8,3 +8,28 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+// Register service worker for asset/page caching
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const swUrl = '/service-worker.js';
+    navigator.serviceWorker
+      .register(swUrl)
+      .then((registration) => {
+        // Optional: listen for updates to prompt user
+        registration.onupdatefound = () => {
+          const installingWorker = registration.installing;
+          if (!installingWorker) return;
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === 'installed') {
+              // New content is available; will be used after tabs reload
+              // console.log('New content is available; please refresh.');
+            }
+          };
+        };
+      })
+      .catch((err) => {
+        console.error('SW registration failed:', err);
+      });
+  });
+}

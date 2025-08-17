@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Box, IconButton, CircularProgress } from "@mui/material";
-import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import React, { useState, useEffect, useRef } from "react";
+import { Box, CircularProgress } from "@mui/material";
 import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage";
 import { app } from "../firebase";
 
@@ -39,9 +37,55 @@ const BannerSlideshow = () => {
   const goPrev = () => setCurrent((prev) => (prev - 1 + images.length) % images.length);
   const goNext = () => setCurrent((prev) => (prev + 1) % images.length);
 
+  // Touch handlers for swipe navigation
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+  const MIN_SWIPE_DISTANCE = 50; // px
+
+  const onTouchStart = (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      touchStartX.current = e.changedTouches[0].clientX;
+      touchEndX.current = e.changedTouches[0].clientX;
+    }
+  };
+
+  const onTouchMove = (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      touchEndX.current = e.changedTouches[0].clientX;
+    }
+  };
+
+  const onTouchEnd = () => {
+    const distance = touchStartX.current - touchEndX.current;
+    if (Math.abs(distance) > MIN_SWIPE_DISTANCE) {
+      if (distance > 0) {
+        // swiped left -> next
+        goNext();
+      } else {
+        // swiped right -> prev
+        goPrev();
+      }
+    }
+  };
+
   return (
     <>
-      <Box sx={{ position: 'relative', width: '100%', height: { xs: 180, sm: 260 }, mb: 0, borderRadius: 3, overflow: 'hidden', boxShadow: 3 }}>
+      <Box
+        sx={{
+          position: 'relative',
+          width: '100%',
+          // Enforce 16:9 aspect ratio; supported in modern browsers
+          aspectRatio: '16 / 9',
+          mb: 0,
+          borderRadius: 3,
+          overflow: 'hidden',
+          boxShadow: 3,
+          touchAction: 'pan-y', // allow vertical scroll, handle horizontal swipes
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         {loading ? (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <CircularProgress />
@@ -53,20 +97,6 @@ const BannerSlideshow = () => {
               alt={`Banner ${current + 1}`}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-            <IconButton
-              onClick={goPrev}
-              sx={{ position: 'absolute', top: '50%', left: 12, transform: 'translateY(-50%)', borderRadius: 2 }}
-              aria-label="Previous banner"
-            >
-              <ArrowBackIosNewIcon />
-            </IconButton>
-            <IconButton
-              onClick={goNext}
-              sx={{ position: 'absolute', top: '50%', right: 12, transform: 'translateY(-50%)', borderRadius: 2 }}
-              aria-label="Next banner"
-            >
-              <ArrowForwardIosIcon />
-            </IconButton>
           </>
         ) : (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary' }}>

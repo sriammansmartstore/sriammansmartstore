@@ -15,25 +15,25 @@ const PaymentSummaryCard = ({ summary, onProceed, isProceedDisabled }) => (
       bgcolor: 'background.paper'
     }}
   >
-    <CardContent sx={{ px: { xs: 0, sm: 3 }, py: { xs: 2, sm: 3 } }}>
-      <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, px: { xs: 2, sm: 0 } }}>Payment Details</Typography>
+    <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+      <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Payment Details</Typography>
 
-      <Box display="flex" justifyContent="space-between" mb={1} sx={{ px: { xs: 2, sm: 0 } }}>
+      <Box display="flex" justifyContent="space-between" mb={1}>
         <Typography>Subtotal</Typography>
         <Typography>₹{summary.total}</Typography>
       </Box>
-      <Box display="flex" justifyContent="space-between" mb={1} sx={{ px: { xs: 2, sm: 0 } }}>
+      <Box display="flex" justifyContent="space-between" mb={1}>
         <Typography>Taxes</Typography>
         <Typography>Included</Typography>
       </Box>
-      <Box display="flex" justifyContent="space-between" mb={1} sx={{ px: { xs: 2, sm: 0 } }}>
+      <Box display="flex" justifyContent="space-between" mb={1}>
         <Typography>Delivery Fee</Typography>
         <Typography color="success.main">FREE</Typography>
       </Box>
 
       <Divider sx={{ my: 2 }} />
 
-      <Box display="flex" justifyContent="space-between" mb={3} sx={{ px: { xs: 2, sm: 0 } }}>
+      <Box display="flex" justifyContent="space-between" mb={3}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>Total Amount</Typography>
         <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>₹{summary.total}</Typography>
       </Box>

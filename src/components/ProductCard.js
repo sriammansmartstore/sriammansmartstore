@@ -236,7 +236,15 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
         {/* Show quantity controls only for single option products after adding to cart */}
         {showQuantity && !hasMultipleOptions && (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0 }}>
-            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={async e => {
+            <IconButton size="small" sx={{
+              width: 32,
+              height: 32,
+              flexShrink: 0,
+              borderRadius: '50%',
+              bgcolor: 'success.main',
+              color: '#fff',
+              '&:hover': { bgcolor: 'success.dark' }
+            }} onClick={async e => {
               e.stopPropagation();
               if (addQuantity <= 1 || updatingQuantity) {
                 setShowQuantity(false);
@@ -249,8 +257,16 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
             }}>
               <RemoveIcon fontSize="small" />
             </IconButton>
-            <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{addQuantity}</Typography>
-            <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={async e => {
+            <Typography sx={{ mx: 1.5, minWidth: 24, textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>{addQuantity}</Typography>
+            <IconButton size="small" sx={{
+              width: 32,
+              height: 32,
+              flexShrink: 0,
+              borderRadius: '50%',
+              bgcolor: 'success.main',
+              color: '#fff',
+              '&:hover': { bgcolor: 'success.dark' }
+            }} onClick={async e => {
               e.stopPropagation();
               if (updatingQuantity) return;
               const newQty = addQuantity + 1;
@@ -276,11 +292,27 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                   </Box>
               ))}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 1, mt: 1 }}>
-                <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={() => setAddQuantity(q => Math.max(1, q - 1))}>
+                <IconButton size="small" sx={{
+                  width: 32,
+                  height: 32,
+                  flexShrink: 0,
+                  borderRadius: '50%',
+                  bgcolor: 'success.main',
+                  color: '#fff',
+                  '&:hover': { bgcolor: 'success.dark' }
+                }} onClick={() => setAddQuantity(q => Math.max(1, q - 1))}>
                   <RemoveIcon fontSize="small" />
                 </IconButton>
-                <Typography sx={{ mx: 0.5, minWidth: 20, textAlign: 'center', fontSize: '0.92rem', fontWeight: 600 }}>{addQuantity}</Typography>
-                <IconButton size="small" sx={{ p: 0.5, background: '#f5f5f5', borderRadius: 1, flexShrink: 0 }} onClick={() => setAddQuantity(q => q + 1)}>
+                <Typography sx={{ mx: 1.5, minWidth: 24, textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>{addQuantity}</Typography>
+                <IconButton size="small" sx={{
+                  width: 32,
+                  height: 32,
+                  flexShrink: 0,
+                  borderRadius: '50%',
+                  bgcolor: 'success.main',
+                  color: '#fff',
+                  '&:hover': { bgcolor: 'success.dark' }
+                }} onClick={() => setAddQuantity(q => q + 1)}>
                   <AddIcon fontSize="small" />
                 </IconButton>
               </Box>

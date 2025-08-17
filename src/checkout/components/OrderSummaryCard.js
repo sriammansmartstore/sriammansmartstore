@@ -40,14 +40,17 @@ const OrderSummaryCard = ({ summary }) => {
   // New calculation for savings percentage
   const savedPercentage = mrpTotal > 0 ? ((savings / mrpTotal) * 100).toFixed(2) : 0;
 
+  // Currency formatter (Indian numbering)
+  const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
   return (
     <Card sx={{ 
       borderRadius: { xs: 0, sm: 2 },
       boxShadow: { xs: 'none', sm: 2 },
-      mb: { xs: 2, sm: 3 }
+      mb: { xs: 1.5, sm: 2 }
     }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Order Summary</Typography>
+      <CardContent sx={{ py: 1, px: { xs: 2, sm: 3 } }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '0.95rem', sm: '1rem' } }}>Order Summary</Typography>
 
         {items.map((item, index) => {
           const qty = item.qty || 1;
@@ -57,8 +60,8 @@ const OrderSummaryCard = ({ summary }) => {
           const imageSrc = item.imageUrl || item.image || item.imageUrls?.[0];
           return (
             <React.Fragment key={`${item.id || item.name}-${index}`}>
-              <Box sx={{ display: 'flex', alignItems: 'center', py: 2 }}>
-                <Box sx={{ width: 64, height: 64, mr: 2, borderRadius: 2, overflow: 'hidden', bgcolor: 'grey.100' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', py: 0.75 }}>
+                <Box sx={{ width: 48, height: 48, mr: 1, borderRadius: 1.5, overflow: 'hidden', bgcolor: 'grey.100' }}>
                   {imageSrc ? (
                     <img src={imageSrc} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : null}
@@ -68,9 +71,12 @@ const OrderSummaryCard = ({ summary }) => {
                     variant="subtitle1" 
                     sx={{ 
                       fontWeight: 600, 
-                      mb: 0.5,
-                      fontSize: { xs: '0.95rem', sm: '1rem' },
-                      lineHeight: 1.3
+                      mb: 0.2,
+                      fontSize: { xs: '0.85rem', sm: '0.9rem' },
+                      lineHeight: 1.3,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
                     {item.name}
@@ -80,59 +86,59 @@ const OrderSummaryCard = ({ summary }) => {
                     <Typography 
                       variant="body2" 
                       color="text.secondary" 
-                      sx={{ mb: 0.5, fontSize: '0.85rem' }}
+                      sx={{ mb: 0.2, fontSize: '0.75rem' }}
                     >
                       {item.unitSize} {item.unit?.toUpperCase?.()}
                     </Typography>
                   )}
-                  
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {/* Prices on the left: MRP (striked) + Selling price in one row */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     {mrp != null && (
-                      <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'line-through', fontSize: '0.85rem' }}>
-                        ₹{mrp}
+                      <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'line-through', fontSize: '0.75rem' }}>
+                        {fmt(mrp)}
                       </Typography>
                     )}
                     <Typography 
                       variant="body2" 
-                      sx={{ 
-                        fontWeight: 600, 
-                        color: 'primary.main',
-                        fontSize: '0.9rem'
-                      }}
+                      sx={{ fontWeight: 700, color: 'primary.main', fontSize: '0.8rem' }}
                     >
-                      ₹{price}
+                      {fmt(price)}
                     </Typography>
                   </Box>
-                  <Typography variant="body2" sx={{ mt: 0.25, fontSize: '0.8rem' }}>
-                    ₹{price} × {qty} = <strong>₹{lineTotal}</strong>
+                </Box>
+                <Box sx={{ textAlign: 'right', minWidth: 80, ml: 1 }}>
+                  {/* Right side: quantity on first line, total below */}
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem', mb: 0.1 }}>
+                    Qty = {qty}
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: { xs: '0.9rem', sm: '0.95rem' } }}>
+                    {fmt(lineTotal)}
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: 'right', minWidth: 100, ml: 1 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>₹{lineTotal}</Typography>
-                </Box>
               </Box>
-              {index < items.length - 1 && <Divider />}
+              {index < items.length - 1 && <Divider sx={{ my: 0.2 }} />}
             </React.Fragment>
           );
         })}
 
-        <Divider sx={{ my: 2 }} />
+        <Divider sx={{ my: 1 }} />
 
         {/* Totals breakdown (no delivery/taxes/grand total here) */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography color="text.secondary">Subtotal</Typography>
-          <Typography>₹{subTotal}</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
           <Typography color="text.secondary">MRP Total</Typography>
-          <Typography sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>₹{mrpTotal}</Typography>
+          <Typography sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>{fmt(mrpTotal)}</Typography>
         </Box>
         {savings > 0 && (
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
             <Typography color="text.secondary">You Save</Typography>
-            <Typography color="success.main">₹{savings} ({savedPercentage}%)</Typography>
+            <Typography color="success.main">({savedPercentage}%) {fmt(savings)} </Typography>
           </Box>
         )}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+          <Typography sx={{ fontWeight: 700, color: 'text.primary' }}>Subtotal</Typography>
+          <Typography sx={{ fontWeight: 800, color: 'text.primary' }}>{fmt(subTotal)}</Typography>
+        </Box>
       </CardContent>
     </Card>
   );

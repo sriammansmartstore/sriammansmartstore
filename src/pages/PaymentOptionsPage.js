@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Card, CardContent, Link, Alert, Divider, Radio, RadioGroup, FormControlLabel, FormControl } from "@mui/material";
+
 import { useNotification } from '../components/NotificationProvider';
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
@@ -11,6 +12,7 @@ import './PaymentOptionsPage.css';
 import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth } from '../firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, PhoneAuthProvider, linkWithCredential } from 'firebase/auth';
+import OrderSuccessAnimation from '../animations/OrderSuccessAnimation';
 
 const paymentOptions = [
   { id: 'upi', name: 'UPI', icon: <QrCode2Icon fontSize="small" color="action" />, type: 'upi', subtitle: 'Pay via UPI apps (GPay, PhonePe, BHIM, etc.)' },
@@ -38,6 +40,7 @@ const PaymentOptionsPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMsg, setDialogMsg] = useState("");
   const [latestOrderId, setLatestOrderId] = useState(null);
+
   const [phone, setPhone] = useState(userProfile?.number || "");
   const [countryCode, setCountryCode] = useState("+91");
   const [recaptchaVerifier, setRecaptchaVerifier] = useState(null);
@@ -53,6 +56,19 @@ const PaymentOptionsPage = () => {
   const [lastRequestedPhone, setLastRequestedPhone] = useState(null);
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState('cod');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successTitle, setSuccessTitle] = useState('Order Confirmed!');
+  const [successSubtitle, setSuccessSubtitle] = useState('Thank you for your purchase.');
+
+  // Ensure the page starts at the top when opened from Checkout
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      // Fallbacks for some browsers
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    } catch (_) {}
+  }, []);
 
   // Derive a display phone number for the verified banner from the most reliable sources
   const displayVerifiedNumber = (
@@ -119,6 +135,12 @@ const PaymentOptionsPage = () => {
     };
   }, [recaptchaVerifier]);
 
+  // Reset transient flags when switching payment method
+  useEffect(() => {
+    // Ensure the action button never remains stuck after switching methods
+    if (loading) setLoading(false);
+  }, [selectedPayment]);
+
   // Save order to Firestore
   const saveOrder = async (paymentMethod, paymentStatus, razorpayDetails = null) => {
   setLoading(true);
@@ -167,9 +189,12 @@ const PaymentOptionsPage = () => {
         console.error('Failed to write user subcollection order copy', e);
       }
 
+  // Show modern success animation and redirect to Orders page
+  setSuccessTitle(paymentMethod === "COD" ? "Order Placed" : "Payment Successful");
+  setSuccessSubtitle(paymentMethod === "COD" ? "Please pay cash on delivery." : "Your order has been placed.");
+  setShowSuccess(true);
+  // Tap-to-continue flow: store the order id and let the success overlay navigate on tap
   setLatestOrderId(ref.id);
-  setDialogMsg(paymentMethod === "COD" ? "Order placed! Please pay cash on delivery." : "Payment successful! Your order has been placed.");
-  setDialogOpen(true);
     } catch (err) {
       setDialogMsg("Failed to place order. Please try again.");
       setDialogOpen(true);
@@ -179,31 +204,64 @@ const PaymentOptionsPage = () => {
 
   // Razorpay payment handler
   const handleRazorpay = async () => {
-    setLoading(true);
-    const options = {
-      key: "rzp_test_YourRazorpayKey", // Replace with your Razorpay key
-      amount: orderSummary.total * 100, // Amount in paise
-      currency: "INR",
-      name: "Sri Amman Smart Store",
-      description: "Order Payment",
-      handler: function (response) {
-        saveOrder("Razorpay", "Paid", response);
+    try {
+      setLoading(true);
+      const keyId = process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_YourRazorpayKey";
+      if (!keyId || keyId.includes('YourRazorpayKey')) {
+        setDialogMsg("Razorpay key is not configured. Please set REACT_APP_RAZORPAY_KEY_ID in your .env and reload.");
+        setDialogOpen(true);
         setLoading(false);
-      },
-      prefill: {
-        name: userProfile?.fullName || "",
-        email: userProfile?.email || "",
-        contact: userProfile?.number || ""
-      },
-      theme: { color: "#388e3c" }
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.on('payment.failed', function () {
-      setDialogMsg("Payment failed. Please try again.");
+        return;
+      }
+      const options = {
+        key: keyId,
+        amount: orderSummary.total * 100, // Amount in paise
+        currency: "INR",
+        name: "Sri Amman Smart Store",
+        description: "Order Payment",
+        handler: function (response) {
+          saveOrder("Razorpay", "Paid", response);
+          setLoading(false);
+        },
+        // Ensure loading is cleared if user closes the modal without paying
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+            try { notify('Payment cancelled', 'info'); } catch (_) {}
+          },
+          escape: true,
+          confirm_close: true
+        },
+        prefill: {
+          name: userProfile?.fullName || "",
+          email: userProfile?.email || "",
+          contact: userProfile?.number || ""
+        },
+        theme: { color: "#388e3c" }
+      };
+      const rzp = new window.Razorpay(options);
+      // Handle explicit failure from gateway
+      rzp.on('payment.failed', function () {
+        setDialogMsg("Payment failed. Please try again.");
+        setDialogOpen(true);
+        setLoading(false);
+      });
+      // Handle user closing the modal without completing payment
+      rzp.on('modal.closed', function () {
+        // Stop spinner so user can choose another method
+        setLoading(false);
+      });
+      // Optional: external wallet selection should not keep loading
+      rzp.on && rzp.on('external_wallet', function () {
+        setLoading(false);
+      });
+      rzp.open();
+    } catch (e) {
+      console.error('Razorpay open/init failed:', e);
+      setDialogMsg("Unable to start payment. Please try again.");
       setDialogOpen(true);
       setLoading(false);
-    });
-    rzp.open();
+    }
   };
 
   // Load Razorpay script if not present
@@ -297,10 +355,10 @@ const PaymentOptionsPage = () => {
       let verifier = recaptchaVerifier;
       if (!verifier) {
         verifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
-          size: 'normal',
-          callback: (response) => console.log('reCAPTCHA solved:', response),
+          size: 'invisible',
+          callback: () => {},
           'expired-callback': () => {
-            setInlineMessage({ type: 'warning', text: 'Security verification expired. Please complete the verification again.' });
+            setInlineMessage({ type: 'warning', text: 'Security verification expired. Please try again.' });
             notify('Security verification expired', 'warning');
           }
         });
@@ -344,7 +402,6 @@ const PaymentOptionsPage = () => {
         setShowPaymentOptions(true);
         setEditingPhone(false);
         // Success toast suppressed to avoid duplicate banners
-        // Clear reCAPTCHA instance after successful verification
         if (recaptchaVerifier) {
           try { recaptchaVerifier.clear(); } catch (e) { console.debug('Error clearing recaptcha after verify:', e); }
           setRecaptchaVerifier(null);
@@ -363,10 +420,28 @@ const PaymentOptionsPage = () => {
         }
       }
     } catch (err) {
-      console.error('OTP verify failed', err);
-      let verifyErrorMessage = 'Verification failed. Please check the OTP and try again.';
-      setInlineMessage({ type: 'error', text: verifyErrorMessage });
-      notify('OTP verification failed', 'error');
+      // Use debug to avoid alarming logs when provider is already linked
+      console.debug('OTP verify handler caught:', err);
+      if (err && (err.code === 'auth/provider-already-linked' || (err.message && err.message.includes('provider-already-linked')))) {
+        // Treat as success if phone provider already linked to this account
+        setPhoneVerified(true);
+        setVerifiedPhoneNumber(countryCode + phone);
+        setInlineMessage(null);
+        setShowPaymentOptions(true);
+        setEditingPhone(false);
+        if (recaptchaVerifier) {
+          try { recaptchaVerifier.clear(); } catch (e) { console.debug('Error clearing recaptcha after verify:', e); }
+          setRecaptchaVerifier(null);
+        }
+      } else if (err && (err.code === 'auth/credential-already-in-use' || (err.message && err.message.includes('credential-already-in-use')))) {
+        const msg = 'This phone number is already linked to another account. Please sign in with that number or use a different phone.';
+        setInlineMessage({ type: 'error', text: msg });
+        notify(msg, 'error');
+      } else {
+        let verifyErrorMessage = 'Verification failed. Please check the OTP and try again.';
+        setInlineMessage({ type: 'error', text: verifyErrorMessage });
+        notify('OTP verification failed', 'error');
+      }
     } finally {
       setVerifying(false);
     }
@@ -464,9 +539,9 @@ const PaymentOptionsPage = () => {
                     </Button>
                   </Box>
 
-                  {editingPhone && !phoneVerified && (
-                    <Box id="recaptcha-container" sx={{ mt: 1, mb: 1, minHeight: '78px' }} />
-                  )}
+                  {/* Invisible reCAPTCHA container (hidden) */}
+                  <Box id="recaptcha-container" sx={{ display: 'none' }} />
+
                 </Box>
               )}
 
@@ -615,6 +690,13 @@ const PaymentOptionsPage = () => {
           <Button onClick={handleDialogClose} autoFocus>OK</Button>
         </DialogActions>
       </Dialog>
+      {showSuccess && (
+        <OrderSuccessAnimation
+          title={successTitle}
+          subtitle={successSubtitle}
+          orderId={latestOrderId}
+        />
+      )}
     </Box>
   );
 };

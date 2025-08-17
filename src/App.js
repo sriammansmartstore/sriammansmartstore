@@ -1,12 +1,13 @@
 import BottomNavbar from "./components/BottomNavbar";
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { auth } from "./firebase";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link as RouterLink } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import "@fontsource/montserrat";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { NotificationProvider } from './components/NotificationProvider';
+import ScrollToTop from './components/ScrollToTop';
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -71,6 +72,14 @@ function App() {
       );
     }
   }, []);
+  // Disable browser scroll restoration so we control it
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      const prev = window.history.scrollRestoration;
+      window.history.scrollRestoration = 'manual';
+      return () => { window.history.scrollRestoration = prev; };
+    }
+  }, []);
   const [nav, setNav] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -92,6 +101,7 @@ function App() {
         <NotificationProvider>
         <CssBaseline />
         <Router>
+          <ScrollToTop />
           <AppBar position="fixed" sx={{ top: 0, background: 'white' }}>
             <Toolbar sx={{ minHeight: 48, px: 2 }}>
               {/* Hamburger icon opens MorePage drawer */}
@@ -113,7 +123,7 @@ function App() {
                 Sri Amman Smart Store
               </Typography>
               {/* Top right: Cart icon always visible */}
-              <IconButton color="inherit" href="/cart" sx={{ ml: 2 }}>
+              <IconButton color="inherit" component={RouterLink} to="/cart" sx={{ ml: 2 }}>
                 <Badge badgeContent={cartCount} color="error" overlap="circular">
                   <ShoppingCartIcon sx={{ color: '#1976d2' }} />
                 </Badge>

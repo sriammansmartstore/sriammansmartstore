@@ -19,7 +19,7 @@ import {
 } from "@mui/icons-material";
 import { AuthContext } from "../context/AuthContext";
 import { db } from "../firebase";
-import { collection, getDocs, doc, deleteDoc, updateDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc, updateDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 const CartPage = () => {
@@ -27,58 +27,74 @@ const CartPage = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [showEmpty, setShowEmpty] = useState(false);
   const [updating, setUpdating] = useState(false);
 
-  // Move fetchCart outside useEffect so it can be reused
-  const fetchCart = async () => {
-    if (!user) return;
-    try {
-      const cartRef = collection(db, "users", user.uid, "cart");
-      const snapshot = await getDocs(query(cartRef, orderBy("addedAt", "desc")));
-      
-      const extractMrp = (obj) => {
-        if (!obj || typeof obj !== 'object') return undefined;
-        if (obj.mrp != null) return obj.mrp;
-        if (obj.mrp12 != null) return obj.mrp12;
-        const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
-        return dynKey ? obj[dynKey] : undefined;
-      };
-      const items = snapshot.docs.map(doc => {
-        const data = doc.data();
-        // Prefer the MRP of the selected option (by unit + unitSize)
-        const unit = data.option?.unit || data.unit;
-        const unitSize = data.option?.unitSize || data.unitSize;
-        const matchedOption = Array.isArray(data.options)
-          ? data.options.find(o => o && o.unit === unit && o.unitSize === unitSize)
-          : undefined;
-        const normalizedMrp = extractMrp(matchedOption) 
-          ?? extractMrp(data.option) 
-          ?? extractMrp(data) 
-          ?? extractMrp(data.options?.[0]);
-        return {
-          id: doc.id,
-          ...data,
-          // Handle both old and new data structure
-          quantity: data.quantity || 1,
-          sellingPrice: data.option?.sellingPrice || data.sellingPrice || data.price,
-          mrp: normalizedMrp,
-          unitSize: data.option?.unitSize || data.unitSize,
-          unit: data.option?.unit || data.unit
-        };
-      });
-      
-      setCartItems(items);
-    } catch (err) {
-      console.error("Error fetching cart:", err);
-      setCartItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Subscribe to cart changes in real time to avoid stale or empty flashes
   useEffect(() => {
-    fetchCart();
+    if (!user) return;
+    setLoading(true);
+    const cartRef = collection(db, "users", user.uid, "cart");
+    const q = query(cartRef, orderBy("addedAt", "desc"));
+
+    const extractMrp = (obj) => {
+      if (!obj || typeof obj !== 'object') return undefined;
+      if (obj.mrp != null) return obj.mrp;
+      if (obj.mrp12 != null) return obj.mrp12;
+      const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
+      return dynKey ? obj[dynKey] : undefined;
+    };
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      try {
+        const items = snapshot.docs.map(d => {
+          const data = d.data();
+          const unit = data.option?.unit || data.unit;
+          const unitSize = data.option?.unitSize || data.unitSize;
+          const matchedOption = Array.isArray(data.options)
+            ? data.options.find(o => o && o.unit === unit && o.unitSize === unitSize)
+            : undefined;
+          const normalizedMrp = extractMrp(matchedOption)
+            ?? extractMrp(data.option)
+            ?? extractMrp(data)
+            ?? extractMrp(data.options?.[0]);
+          return {
+            id: d.id,
+            ...data,
+            quantity: data.quantity || 1,
+            sellingPrice: data.option?.sellingPrice || data.sellingPrice || data.price,
+            mrp: normalizedMrp,
+            unitSize: data.option?.unitSize || data.unitSize,
+            unit: data.option?.unit || data.unit
+          };
+        });
+        setCartItems(items);
+      } finally {
+        setLoading(false);
+        setHasFetched(true);
+      }
+    }, (err) => {
+      console.error('Error subscribing to cart:', err);
+      setCartItems([]);
+      setLoading(false);
+      setHasFetched(true);
+    });
+
+    return () => unsub();
   }, [user]);
+
+  // Debounce empty-state display to prevent brief flashes
+  useEffect(() => {
+    if (!hasFetched) {
+      setShowEmpty(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowEmpty(cartItems.length === 0);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [hasFetched, cartItems.length]);
 
 
   const handleDelete = async (id) => {
@@ -88,7 +104,6 @@ const CartPage = () => {
     try {
       const docRef = doc(db, "users", user.uid, "cart", id);
       await deleteDoc(docRef);
-      await fetchCart();
     } catch (err) {
       console.error('Error deleting item from cart:', err);
     } finally {
@@ -108,7 +123,6 @@ const CartPage = () => {
       
       if (newQty === 0) {
         await deleteDoc(itemRef);
-        await fetchCart();
       } else {
         await updateDoc(itemRef, { 
           quantity: newQty,
@@ -125,6 +139,17 @@ const CartPage = () => {
 
   const total = cartItems.reduce((sum, item) => sum + (item.sellingPrice || item.price) * (item.quantity || item.qty), 0);
   
+  // While AuthContext is initializing, avoid showing empty/login flicker
+  if (user === undefined) {
+    return (
+      <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
+        <Box display="flex" justifyContent="center" py={4}>
+          <CircularProgress />
+        </Box>
+      </Box>
+    );
+  }
+
   if (!user) {
     return (
       <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
@@ -175,7 +200,7 @@ const CartPage = () => {
         <Box display="flex" justifyContent="center" py={4}>
           <CircularProgress />
         </Box>
-      ) : cartItems.length === 0 ? (
+      ) : showEmpty ? (
         <Card sx={{ borderRadius: 2, boxShadow: 2, textAlign: 'center', py: 4 }}>
           <CardContent>
             <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
@@ -207,9 +232,27 @@ const CartPage = () => {
                   borderRadius: 2, 
                   boxShadow: 1,
                   opacity: updating ? 0.6 : 1,
-                  transition: 'opacity 0.2s'
+                  transition: 'opacity 0.2s',
+                  position: 'relative'
                 }}
               >
+                {/* Top-right delete */}
+                <IconButton
+                  size="small"
+                  aria-label="Remove item"
+                  onClick={() => handleDelete(item.id)}
+                  disabled={updating}
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    color: 'error.main',
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
                 <CardContent sx={{ p: 2 }}>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     {/* Product Image */}
@@ -326,19 +369,6 @@ const CartPage = () => {
                           >
                             ₹{itemTotal}
                           </Typography>
-                          
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleDelete(item.id)}
-                            disabled={updating}
-                            sx={{ 
-                              color: 'error.main',
-                              width: 32,
-                              height: 32
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
                         </Box>
                       </Box>
                     </Box>

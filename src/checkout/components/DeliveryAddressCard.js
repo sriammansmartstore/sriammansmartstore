@@ -44,9 +44,25 @@ const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, lo
                 {addresses.map((addr) => (
                   <MenuItem key={addr.id} value={addr.id}>
                     <Box>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>{addr.line1 || addr.door || ""}</Typography>
+                      {/* Primary: Full Name */}
+                      <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                        {addr.fullName || "Unnamed Recipient"}
+                      </Typography>
+                      {/* Secondary: Father/Spouse Name, if present */}
+                      {addr.fatherOrSpouse && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          {addr.fatherOrSpouse}
+                        </Typography>
+                      )}
+                      {/* Address lines */}
                       <Typography variant="body2" color="text.secondary">
-                        {`${addr.city || addr.town || ""}, ${addr.state || ""} - ${addr.pincode || ""}`}
+                        {(addr.door || "") + (addr.street ? `, ${addr.street}` : "")}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {(addr.town || addr.city || "") + (addr.district ? `, ${addr.district}` : "")}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {(addr.state || "") + (addr.pincode ? ` - ${addr.pincode}` : "")}
                       </Typography>
                     </Box>
                   </MenuItem>
