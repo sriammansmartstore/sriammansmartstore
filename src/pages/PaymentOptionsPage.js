@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Box, Typography, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Card, CardContent, Grid, Link, Alert, Divider } from "@mui/material";
+import { Box, Typography, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Card, CardContent, Link, Alert, Divider, Radio, RadioGroup, FormControlLabel, FormControl } from "@mui/material";
 import { useNotification } from '../components/NotificationProvider';
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
-import { IconButton } from "@mui/material";
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
 import './PaymentOptionsPage.css';
 import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -12,8 +13,11 @@ import { auth } from '../firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, PhoneAuthProvider, linkWithCredential } from 'firebase/auth';
 
 const paymentOptions = [
-  { id: 1, name: "Razorpay (UPI, Card, Wallet)", icon: <CreditCardIcon color="primary" />, type: "razorpay" },
-  { id: 2, name: "Cash on Delivery", icon: <CurrencyRupeeIcon color="primary" />, type: "cod" },
+  { id: 'upi', name: 'UPI', icon: <QrCode2Icon fontSize="small" color="action" />, type: 'upi', subtitle: 'Pay via UPI apps (GPay, PhonePe, BHIM, etc.)' },
+  { id: 'netbanking', name: 'Netbanking', icon: <AccountBalanceIcon fontSize="small" color="action" />, type: 'netbanking', subtitle: 'Pay using your internet banking' },
+  { id: 'card', name: 'Cards', icon: <CreditCardIcon fontSize="small" color="action" />, type: 'card', subtitle: 'Pay with credit/debit cards' },
+  { id: 'wallet', name: 'Wallet', icon: <AccountBalanceWalletIcon fontSize="small" color="action" />, type: 'wallet', subtitle: 'Pay with popular wallets' },
+  { id: 'cod', name: 'Cash on Delivery', icon: <CurrencyRupeeIcon fontSize="small" color="success" />, type: 'cod', subtitle: 'Pay with cash on delivery' },
 ];
 
 const PaymentOptionsPage = () => {
@@ -48,6 +52,16 @@ const PaymentOptionsPage = () => {
   const [editingPhone, setEditingPhone] = useState(false);
   const [lastRequestedPhone, setLastRequestedPhone] = useState(null);
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState(null);
+  const [selectedPayment, setSelectedPayment] = useState('cod');
+
+  // Derive a display phone number for the verified banner from the most reliable sources
+  const displayVerifiedNumber = (
+    verifiedPhoneNumber ||
+    (auth && auth.currentUser ? auth.currentUser.phoneNumber : null) ||
+    (phoneVerified ? (phone?.startsWith('+') ? phone : (countryCode + (phone || ''))) : null) ||
+    userProfile?.number ||
+    ''
+  );
 
   // If the signed-in user already has a phone credential, treat as verified
   useEffect(() => {
@@ -60,7 +74,7 @@ const PaymentOptionsPage = () => {
           setPhoneVerified(true);
           setVerifiedPhoneNumber(existingVerifiedPhone); // Store the verified phone
           setPhone(existingVerifiedPhone || ''); // Set the phone field to show the verified number
-          setInlineMessage({ type: 'success', text: 'Phone number already verified.' });
+          setInlineMessage(null);
           setShowPaymentOptions(true);
           setEditingPhone(false);
         } else {
@@ -274,8 +288,8 @@ const PaymentOptionsPage = () => {
         const currentPhone = auth.currentUser.phoneNumber;
         if (currentPhone && currentPhone === fullPhone) {
           setPhoneVerified(true);
-          setInlineMessage({ type: 'success', text: 'Phone already verified.' });
-          notify('Phone already verified.', 'success');
+          setInlineMessage(null);
+          // Success toast suppressed to avoid duplicate banners
           return;
         }
       }
@@ -326,18 +340,27 @@ const PaymentOptionsPage = () => {
         await linkWithCredential(auth.currentUser, credential);
         setPhoneVerified(true);
         setVerifiedPhoneNumber(countryCode + phone);
-        setInlineMessage({ type: 'success', text: 'Phone verified. You may proceed to place the order.' });
+        setInlineMessage(null);
         setShowPaymentOptions(true);
         setEditingPhone(false);
-        notify('Phone verified successfully!', 'success');
+        // Success toast suppressed to avoid duplicate banners
+        // Clear reCAPTCHA instance after successful verification
+        if (recaptchaVerifier) {
+          try { recaptchaVerifier.clear(); } catch (e) { console.debug('Error clearing recaptcha after verify:', e); }
+          setRecaptchaVerifier(null);
+        }
       } else {
         const res = await confirmationResult.confirm(otp);
         setPhoneVerified(true);
         setVerifiedPhoneNumber(countryCode + phone);
-        setInlineMessage({ type: 'success', text: 'Phone verified.' });
+        setInlineMessage(null);
         setShowPaymentOptions(true);
         setEditingPhone(false);
-        notify('Phone verified successfully!', 'success');
+        // Clear reCAPTCHA instance after successful verification
+        if (recaptchaVerifier) {
+          try { recaptchaVerifier.clear(); } catch (e) { console.debug('Error clearing recaptcha after verify:', e); }
+          setRecaptchaVerifier(null);
+        }
       }
     } catch (err) {
       console.error('OTP verify failed', err);
@@ -350,19 +373,16 @@ const PaymentOptionsPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, maxWidth: '100%', mx: 'auto', minHeight: '100vh' }}>
-      {/* Header */}
-      <Box display="flex" alignItems="center" mb={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto' }}>
-        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Payment & Verification</Typography>
+    <Box sx={{ p: { xs: 0, sm: 2, md: 3 }, maxWidth: '100%', mx: 'auto', minHeight: '100vh' }}>
+      {/* Title (no back button) */}
+      <Box mb={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, sm: 0 } }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>Payment & Verification</Typography>
       </Box>
 
-      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ maxWidth: { sm: 1200 }, mx: { xs: 0, sm: 'auto' } }}>
         {/* Phone Verification Section */}
-        <Grid item xs={12} lg={8}>
-          <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+        <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+          <Card sx={{ borderRadius: { xs: 0, sm: 2 }, boxShadow: 2, width: '100%' }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Contact & Verification</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Verify your mobile number with OTP (reCAPTCHA protected) before placing the order.</Typography>
@@ -444,23 +464,41 @@ const PaymentOptionsPage = () => {
                     </Button>
                   </Box>
 
-                  {editingPhone && !phoneVerified && !otpSent && (
+                  {editingPhone && !phoneVerified && (
                     <Box id="recaptcha-container" sx={{ mt: 1, mb: 1, minHeight: '78px' }} />
                   )}
                 </Box>
               )}
 
-              {inlineMessage && <Alert severity={inlineMessage.type} sx={{ mt: 2, borderRadius: 2 }}>{inlineMessage.text}</Alert>}
+              {phoneVerified && (
+                <Box sx={{ mt: 1 }}>
+                  <Alert severity="success" sx={{ borderRadius: 2, mb: 1 }}>
+                    Phone verified: {displayVerifiedNumber}.
+                  </Alert>
+                  <Button
+                    variant="text"
+                    onClick={handleLinkAnotherNumber}
+                    disabled={loading}
+                    sx={{ borderRadius: 2, fontWeight: 500 }}
+                  >
+                    Link another phone number
+                  </Button>
+                </Box>
+              )}
+
+              {inlineMessage && !phoneVerified && (
+                <Alert severity={inlineMessage.type} sx={{ mt: 2, borderRadius: 2 }}>{inlineMessage.text}</Alert>
+              )}
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
                 By verifying you agree to our <Link component={RouterLink} to="/terms">Terms</Link> and <Link component={RouterLink} to="/privacy">Privacy Policy</Link>.
               </Typography>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Order Summary */}
-        <Grid item xs={12} lg={4}>
-          <Card sx={{ borderRadius: 2, boxShadow: 2, position: { lg: 'sticky' }, top: 20 }}>
+        <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+          <Card sx={{ borderRadius: { xs: 0, sm: 2 }, boxShadow: 2, width: '100%' }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Order Summary</Typography>
               
@@ -482,61 +520,79 @@ const PaymentOptionsPage = () => {
               <Divider sx={{ my: 2 }} />
               
               <Box sx={{ 
-                background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)', 
-                borderRadius: 3, 
-                p: 2.5,
-                boxShadow: '0 4px 20px rgba(255, 107, 107, 0.25)'
+                borderRadius: 2,
+                p: 2.5
               }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>Grand Total</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', fontSize: '1.4rem' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary' }}>Grand Total</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', fontSize: '1.4rem' }}>
                     ₹{orderSummary.total}
                   </Typography>
                 </Box>
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {showPaymentOptions && (
-          <Grid item xs={12}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+          <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+            <Card sx={{ borderRadius: { xs: 0, sm: 2 }, boxShadow: 2, width: '100%' }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Payment Options</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Choose a payment method. You will be prompted to complete payment for online methods.</Typography>
-                <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-                  {paymentOptions.map(opt => (
-                    <Grid item xs={12} key={opt.id}>
-                      <Card variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap={{ xs: 'wrap', sm: 'nowrap' }} gap={2}>
-                          <Box display="flex" alignItems="center" gap={2} sx={{ flex: 1, minWidth: 0 }}>
+
+                <FormControl component="fieldset" sx={{ width: '100%' }}>
+                  <RadioGroup
+                    aria-label="payment-method"
+                    name="payment-method"
+                    value={selectedPayment}
+                    onChange={(e) => setSelectedPayment(e.target.value)}
+                  >
+                    {paymentOptions.map(opt => (
+                      <FormControlLabel
+                        key={opt.id}
+                        value={opt.type}
+                        control={<Radio />}
+                        labelPlacement="start"
+                        label={
+                          <Box display="flex" alignItems="center" gap={1.25}>
                             {opt.icon}
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.95rem', sm: '1rem' } }}>{opt.name}</Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' } }}>{opt.type === 'cod' ? 'Pay with cash on delivery' : 'Secure online payment'}</Typography>
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{opt.name}</Typography>
+                              <Typography variant="caption" color="text.secondary">{opt.subtitle}</Typography>
                             </Box>
                           </Box>
-                          <Button 
-                            variant="contained" 
-                            disabled={loading} 
-                            onClick={() => handlePay(opt)}
-                            sx={{
-                              borderRadius: 2,
-                              fontWeight: 600,
-                              px: { xs: 2, sm: 3 },
-                              py: { xs: 1, sm: 1.2 },
-                              fontSize: { xs: '0.85rem', sm: '0.9rem' },
-                              minWidth: { xs: '100%', sm: 'auto' },
-                              mt: { xs: 1, sm: 0 }
-                            }}
-                          >
-                            {loading ? <CircularProgress size={20} /> : (opt.type === "online" ? "Pay Online" : "Place Order")}
-                          </Button>
-                        </Box>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                        }
+                        sx={{
+                          m: 0,
+                          py: 1,
+                          px: 1,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          width: '100%'
+                        }}
+                      />
+                    ))}
+                  </RadioGroup>
+                </FormControl>
+
+                <Button
+                  fullWidth
+                  color="success"
+                  variant="contained"
+                  disabled={loading}
+                  onClick={() => (selectedPayment === 'cod' ? handleCOD() : handleRazorpay())}
+                  sx={{
+                    mt: 2,
+                    borderRadius: 2,
+                    fontWeight: 800,
+                    py: 1.3,
+                    boxShadow: '0 6px 16px rgba(56,142,60,0.35)'
+                  }}
+                >
+                  {loading ? <CircularProgress size={22} /> : 'PLACE ORDER'}
+                </Button>
 
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="body2" color="text.secondary">Need help? <Link component={RouterLink} to="/contact">Contact us</Link></Typography>
@@ -546,9 +602,9 @@ const PaymentOptionsPage = () => {
                 </Box>
               </CardContent>
             </Card>
-          </Grid>
+          </Box>
         )}
-      </Grid>
+      </Box>
 
       <Dialog open={dialogOpen} onClose={handleDialogClose}>
         <DialogTitle>Order Status</DialogTitle>

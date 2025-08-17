@@ -12,7 +12,6 @@ import {
   Stack
 } from "@mui/material";
 import { 
-  ArrowBack as ArrowBackIcon, 
   Add as AddIcon, 
   Remove as RemoveIcon, 
   Delete as DeleteIcon,
@@ -130,9 +129,6 @@ const CartPage = () => {
     return (
       <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
         <Box display="flex" alignItems="center" mb={3}>
-          <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
-            <ArrowBackIcon />
-          </IconButton>
           <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Your Cart</Typography>
         </Box>
         <Card sx={{ borderRadius: 2, boxShadow: 2, textAlign: 'center', py: 4 }}>
@@ -164,11 +160,8 @@ const CartPage = () => {
     }}>
       {/* Header */}
       <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Box display="flex" alignItems="center" mb={3}>
-        <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Your Cart</Typography>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>Your Cart</Typography>
         {cartItems.length > 0 && (
           <Chip 
             label={`${cartItems.length} item${cartItems.length > 1 ? 's' : ''}`} 
