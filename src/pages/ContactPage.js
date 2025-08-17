@@ -31,7 +31,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const ContactPage = () => {
   const navigate = useNavigate();
-  const notify = useNotification();
+  const { notify } = useNotification() || { notify: () => {} };
   const [formData, setFormData] = useState({
     name: '',
     email: '',

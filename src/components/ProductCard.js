@@ -80,6 +80,14 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
     let latestQuantity = newQuantity;
     try {
       const optionToAdd = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
+      const extractMrp = (obj) => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj.mrp != null) return obj.mrp;
+        if (obj.mrp12 != null) return obj.mrp12;
+        const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
+        return dynKey ? obj[dynKey] : null;
+      };
+      const mrpValue = extractMrp(optionToAdd) ?? extractMrp(product);
       const cartRef = collection(db, "users", user.uid, "cart");
       // Find existing cart item for this product and option
       const q = query(
@@ -91,7 +99,14 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       const cartSnap = await getDocs(q);
       if (!cartSnap.empty) {
         const cartDoc = cartSnap.docs[0];
-        await updateDoc(cartDoc.ref, { quantity: latestQuantity, addedAt: new Date().toISOString() });
+        await updateDoc(cartDoc.ref, { 
+          quantity: latestQuantity, 
+          addedAt: new Date().toISOString(),
+          // Ensure pricing fields are persisted/updated
+          mrp: mrpValue,
+          sellingPrice: optionToAdd.sellingPrice ?? product.sellingPrice ?? null,
+          price: optionToAdd.sellingPrice ?? product.sellingPrice ?? null
+        });
       } else {
         const { id, ...productWithoutId } = product;
         await addDoc(cartRef, {
@@ -100,8 +115,13 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           ...optionToAdd,
           quantity: latestQuantity,
           addedAt: new Date().toISOString(),
+          // Explicitly store pricing for checkout computations
+          mrp: mrpValue,
+          sellingPrice: optionToAdd.sellingPrice ?? product.sellingPrice ?? null,
+          price: optionToAdd.sellingPrice ?? product.sellingPrice ?? null
         });
       }
+
       setAddQuantity(latestQuantity);
       if (onAddToCart) onAddToCart(product, latestQuantity);
     } catch (err) {

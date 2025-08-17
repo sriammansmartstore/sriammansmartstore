@@ -1,0 +1,66 @@
+import React from 'react';
+import { Box, Typography, Button, MenuItem, Select, FormControl, InputLabel, Card, CardContent, Alert, CircularProgress } from '@mui/material';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import AddIcon from '@mui/icons-material/Add';
+import { useNavigate } from 'react-router-dom';
+import { useNotification } from '../../components/NotificationProvider';
+
+const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, loading }) => {
+  const navigate = useNavigate();
+  const { notify } = useNotification() || { notify: () => {} };
+
+  const handleAddNewAddress = () => {
+    navigate('/addresses');
+    notify('Add a new delivery address to continue', 'info');
+  };
+
+  return (
+    <Card sx={{ borderRadius: { xs: 0, sm: 2 }, boxShadow: { xs: 'none', sm: 2 } }}>
+      <CardContent>
+        <Box display="flex" alignItems="center" mb={2}>
+          <LocationOnIcon sx={{ mr: 1, color: 'primary.main' }} />
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Delivery Address</Typography>
+        </Box>
+        
+        {loading ? (
+          <Box display="flex" justifyContent="center" py={2}><CircularProgress size={24} /></Box>
+        ) : addresses.length === 0 ? (
+          <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+            No addresses found. Please add one to continue.
+            <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddNewAddress} sx={{ mt: 2, fontWeight: 600, borderRadius: 2 }}>
+              Add New Address
+            </Button>
+          </Alert>
+        ) : (
+          <Box>
+            <FormControl fullWidth sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
+              <InputLabel id="address-select-label">Select Delivery Address</InputLabel>
+              <Select
+                labelId="address-select-label"
+                value={selectedAddressId}
+                label="Select Delivery Address"
+                onChange={onAddressChange}
+              >
+                {addresses.map((addr) => (
+                  <MenuItem key={addr.id} value={addr.id}>
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>{addr.line1 || addr.door || ""}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {`${addr.city || addr.town || ""}, ${addr.state || ""} - ${addr.pincode || ""}`}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddNewAddress} sx={{ fontWeight: 500, borderRadius: 2 }}>
+              Add Another Address
+            </Button>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default DeliveryAddressCard;

@@ -44,6 +44,14 @@ const ProductDetailsPage = () => {
     setCartLoading(true);
     try {
       const selectedOption = options[selectedOptionIdx] || options[0];
+      const extractMrp = (obj) => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj.mrp != null) return obj.mrp;
+        if (obj.mrp12 != null) return obj.mrp12;
+        const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
+        return dynKey ? obj[dynKey] : null;
+      };
+      const mrpValue = extractMrp(selectedOption) ?? extractMrp(product);
       const cartRef = collection(db, "users", user.uid, "cart");
       console.log('[Cart] Attempting to update/add:', {
         productId: product.id,
@@ -69,7 +77,14 @@ const ProductDetailsPage = () => {
         // Update existing cart item
         const cartDoc = cartSnap.docs[0];
         console.log('[Cart] Updating existing cart doc:', cartDoc.id, cartDoc.data());
-        await updateDoc(cartDoc.ref, { quantity, addedAt: new Date().toISOString() });
+        await updateDoc(cartDoc.ref, { 
+          quantity, 
+          addedAt: new Date().toISOString(),
+          // persist pricing fields for checkout strikeout logic
+          mrp: mrpValue,
+          sellingPrice: selectedOption.sellingPrice ?? product.sellingPrice ?? null,
+          price: selectedOption.sellingPrice ?? product.sellingPrice ?? null
+        });
         console.log('[Cart] Updated doc:', cartDoc.id, 'with quantity:', quantity);
       } else {
         // Add new cart item
@@ -88,6 +103,10 @@ const ProductDetailsPage = () => {
           ...selectedOption,
           quantity,
           addedAt: new Date().toISOString(),
+          // Explicit pricing fields for downstream components
+          mrp: mrpValue,
+          sellingPrice: selectedOption.sellingPrice ?? product.sellingPrice ?? null,
+          price: selectedOption.sellingPrice ?? product.sellingPrice ?? null
         });
         console.log('[Cart] Added new doc with ID:', addedDoc.id);
       }

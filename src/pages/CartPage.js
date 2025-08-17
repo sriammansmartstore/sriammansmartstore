@@ -7,7 +7,6 @@ import {
   CircularProgress, 
   Card, 
   CardContent, 
-  Divider, 
   Alert,
   Chip,
   Stack
@@ -38,15 +37,32 @@ const CartPage = () => {
       const cartRef = collection(db, "users", user.uid, "cart");
       const snapshot = await getDocs(query(cartRef, orderBy("addedAt", "desc")));
       
+      const extractMrp = (obj) => {
+        if (!obj || typeof obj !== 'object') return undefined;
+        if (obj.mrp != null) return obj.mrp;
+        if (obj.mrp12 != null) return obj.mrp12;
+        const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
+        return dynKey ? obj[dynKey] : undefined;
+      };
       const items = snapshot.docs.map(doc => {
         const data = doc.data();
+        // Prefer the MRP of the selected option (by unit + unitSize)
+        const unit = data.option?.unit || data.unit;
+        const unitSize = data.option?.unitSize || data.unitSize;
+        const matchedOption = Array.isArray(data.options)
+          ? data.options.find(o => o && o.unit === unit && o.unitSize === unitSize)
+          : undefined;
+        const normalizedMrp = extractMrp(matchedOption) 
+          ?? extractMrp(data.option) 
+          ?? extractMrp(data) 
+          ?? extractMrp(data.options?.[0]);
         return {
           id: doc.id,
           ...data,
           // Handle both old and new data structure
           quantity: data.quantity || 1,
           sellingPrice: data.option?.sellingPrice || data.sellingPrice || data.price,
-          mrp: data.option?.mrp || data.mrp,
+          mrp: normalizedMrp,
           unitSize: data.option?.unitSize || data.unitSize,
           unit: data.option?.unit || data.unit
         };
@@ -139,8 +155,15 @@ const CartPage = () => {
     );
   }
   return (
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
+    // Single-column, mobile-first layout similar to CheckoutPage
+    <Box sx={{
+      bgcolor: 'grey.50',
+      minHeight: '100vh',
+      px: { xs: 2, sm: 3, md: 4 },
+      py: { xs: 2, sm: 3 },
+    }}>
       {/* Header */}
+      <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
       <Box display="flex" alignItems="center" mb={3}>
         <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 1 }}>
           <ArrowBackIcon />
@@ -331,76 +354,37 @@ const CartPage = () => {
               </Card>
             );
           })}
-          
-          {/* Order Summary - Mobile Optimized */}
-          <Card sx={{ borderRadius: 2, boxShadow: 2, mt: 2 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Order Summary</Typography>
-              
-              <Stack spacing={1} sx={{ mb: 2 }}>
-                <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">Items ({cartItems.length})</Typography>
-                  <Typography variant="body2">₹{total}</Typography>
-                </Box>
-                <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">Delivery</Typography>
-                  <Typography variant="body2" color="success.main">FREE</Typography>
-                </Box>
-                <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2">Taxes</Typography>
-                  <Typography variant="body2">Included</Typography>
-                </Box>
-              </Stack>
-              
-              <Divider sx={{ my: 2 }} />
-              
-              <Box 
-                display="flex" 
-                justifyContent="space-between" 
-                alignItems="center"
-                sx={{ 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                  borderRadius: 3, 
-                  p: 2.5, 
-                  mb: 3,
-                  boxShadow: '0 4px 20px rgba(102, 126, 234, 0.25)'
-                }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>Total Amount</Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', fontSize: '1.4rem' }}>
-                  ₹{total}
-                </Typography>
-              </Box>
-              
-              <Button
-                variant="contained"
-                fullWidth
-                size="large"
-                disabled={updating || cartItems.length === 0}
-                onClick={() => navigate('/checkout', { 
-                  state: { 
-                    cartItems,
-                    orderSummary: {
-                      items: cartItems.map(item => ({
-                        ...item,
-                        qty: item.quantity || item.qty || 1,
-                        price: item.sellingPrice || item.price
-                      })),
-                      total
-                    }
+
+          {/* Proceed CTA only (no order summary card) */}
+          <Box sx={{ mt: 1 }}>
+            <Button
+              variant="contained"
+              fullWidth
+              size="large"
+              disabled={updating || cartItems.length === 0}
+              onClick={() => navigate('/checkout', { 
+                state: { 
+                  cartItems,
+                  orderSummary: {
+                    items: cartItems.map(item => ({
+                      ...item,
+                      qty: item.quantity || item.qty || 1,
+                      price: item.sellingPrice || item.price
+                    })),
+                    total
                   }
-                })}
-                sx={{ 
-                  fontWeight: 600, 
-                  borderRadius: 2, 
-                  py: 1.5,
-                  fontSize: '1.1rem'
-                }}
-              >
-                {updating ? <CircularProgress size={24} /> : 'Proceed to Checkout'}
-              </Button>
-            </CardContent>
-          </Card>
+                }
+              })}
+              sx={{ 
+                fontWeight: 700,
+                borderRadius: 2, 
+                py: 1.5,
+                fontSize: '1.05rem'
+              }}
+            >
+              {updating ? <CircularProgress size={24} /> : 'Proceed to Checkout'}
+            </Button>
+          </Box>
         </Stack>
       )}
       
@@ -409,6 +393,7 @@ const CartPage = () => {
           Updating cart...
         </Alert>
       )}
+      </Box>
     </Box>
   );
 };
