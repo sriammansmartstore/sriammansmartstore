@@ -8,6 +8,8 @@ import MicIcon from "@mui/icons-material/Mic";
 import './HomePage.css';
 import LocationDetectionWidget from "./LocationDetectionPage";
 import ProductCard from "../components/ProductCard";
+import SEO from "../components/SEO";
+
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 import { doc, setDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
@@ -219,6 +221,12 @@ const HomePage = () => {
 
   return (
     <Box className="home-root" sx={{ position: 'relative', pb: 10 }}>
+      <SEO
+        title="Online Grocery & Essentials"
+        description="Shop groceries and daily essentials online from Sri Amman Smart Store. Discover fresh products, best prices, and fast delivery in Coimbatore."
+        type="website"
+      />
+
       
      
              <TextField

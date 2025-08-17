@@ -7,7 +7,10 @@ import CssBaseline from "@mui/material/CssBaseline";
 import "@fontsource/montserrat";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { NotificationProvider } from './components/NotificationProvider';
+import { HelmetProvider, Helmet } from 'react-helmet-async';
 import ScrollToTop from './components/ScrollToTop';
+import RouteSEO from './components/RouteSEO';
+import GlobalPageSEO from './components/GlobalPageSEO';
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -98,9 +101,21 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider theme={theme}>
+        <HelmetProvider>
         <NotificationProvider>
         <CssBaseline />
         <Router>
+          <Helmet>
+            <title>Sri Amman Smart Store</title>
+            <meta name="description" content="Shop groceries and daily essentials online from Sri Amman Smart Store. Fast delivery, best prices, and secure payment options." />
+            <meta name="robots" content="index,follow" />
+            <meta property="og:site_name" content="Sri Amman Smart Store" />
+            <meta property="og:title" content="Sri Amman Smart Store" />
+            <meta property="og:description" content="Shop groceries and daily essentials online from Sri Amman Smart Store." />
+            <meta property="og:type" content="website" />
+          </Helmet>
+          <RouteSEO />
+          <GlobalPageSEO />
           <ScrollToTop />
           <AppBar position="fixed" sx={{ top: 0, background: 'white' }}>
             <Toolbar sx={{ minHeight: 48, px: 2 }}>
@@ -179,6 +194,7 @@ function App() {
           <BottomNavbar />
         </Router>
         </NotificationProvider>
+        </HelmetProvider>
       </ThemeProvider>
     </AuthProvider>
   );

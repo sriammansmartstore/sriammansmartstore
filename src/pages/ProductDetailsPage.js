@@ -12,6 +12,7 @@ import { doc, getDoc, setDoc, collection, addDoc, getDocs, orderBy, query } from
 import { updateDoc, where, deleteDoc } from "firebase/firestore";
 import { getOptionKey, getPrimaryOption, fetchWishlistsWithProductOptions } from '../utils/wishlistUtils';
 import ProductCard from "../components/ProductCard.js"; // Explicit extension for compatibility
+import SEO from "../components/SEO";
 
 const ProductDetailsPage = () => {
   // wishlist state moved into WishlistWidget
@@ -191,6 +192,29 @@ const ProductDetailsPage = () => {
 
   return (
     <Box className="product-details-root" sx={{ maxWidth: { xs: '100%', sm: 700 }, mx: "auto", mt: 0, p: { xs: 0.5, sm: 2 }, boxShadow: 3, borderRadius: { xs: 0, sm: 3 }, bgcolor: "#fff" }}>
+      <SEO
+        title={`${product.name}`}
+        description={product.description || `${product.name} at the best price. Fast delivery in Coimbatore.`}
+        image={product?.imageUrls?.[0]}
+        type="product"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.name,
+          image: product?.imageUrls || [],
+          description: product.description || '',
+          sku: product.id,
+          brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+          aggregateRating: avgRating ? { "@type": "AggregateRating", ratingValue: Number(avgRating), reviewCount: reviews.length } : undefined,
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "INR",
+            price: selectedOption?.sellingPrice ?? product?.sellingPrice ?? '',
+            availability: product?.outOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+            url: typeof window !== 'undefined' ? window.location.href : '',
+          },
+        }}
+      />
       <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: { xs: 0, sm: 3 } }}>
         {/* Image gallery */}
         <Box sx={{ position: 'relative', width: { xs: '100%', md: 300 }, minHeight: { xs: 220, sm: 300 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: 'inherit' }, p: { xs: 1, sm: 0 } }}>
