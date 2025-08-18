@@ -254,12 +254,12 @@ const CartPage = () => {
                   <DeleteIcon fontSize="small" />
                 </IconButton>
                 <CardContent sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 1.5 }}>
                     {/* Product Image */}
                     <Box 
                       sx={{ 
-                        width: { xs: 60, sm: 80 }, 
-                        height: { xs: 60, sm: 80 }, 
+                        width: { xs: 52, sm: 64 }, 
+                        height: { xs: 52, sm: 64 }, 
                         borderRadius: 2, 
                         overflow: 'hidden',
                         bgcolor: 'grey.50',
@@ -282,41 +282,45 @@ const CartPage = () => {
                     
                     {/* Product Details */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography 
-                        variant="subtitle1" 
-                        sx={{ 
-                          fontWeight: 600, 
-                          mb: 0.5,
-                          fontSize: { xs: '0.95rem', sm: '1rem' },
-                          lineHeight: 1.3
-                        }}
-                      >
-                        {item.name}
-                      </Typography>
-                      
-                      {(item.unitSize && item.unit) && (
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography 
+                            variant="subtitle1" 
+                            sx={{ 
+                              fontWeight: 600, 
+                              mb: 0.25,
+                              fontSize: { xs: '0.9rem', sm: '0.95rem' },
+                              lineHeight: 1.3
+                            }}
+                          >
+                            {item.name}
+                          </Typography>
+                          {(item.unitSize && item.unit) && (
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary" 
+                              sx={{ mb: 0.25, fontSize: '0.8rem' }}
+                            >
+                              {item.unitSize} {item.unit.toUpperCase()}
+                            </Typography>
+                          )}
+                        </Box>
                         <Typography 
                           variant="body2" 
-                          color="text.secondary" 
-                          sx={{ mb: 0.5, fontSize: '0.85rem' }}
+                          sx={{ 
+                            fontWeight: 600, 
+                            color: 'primary.main',
+                            fontSize: '0.8rem',
+                            whiteSpace: 'nowrap',
+                            ml: 1
+                          }}
                         >
-                          {item.unitSize} {item.unit.toUpperCase()}
+                          ₹{pricePerUnit} per unit
                         </Typography>
-                      )}
-                      
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          fontWeight: 600, 
-                          color: 'primary.main',
-                          fontSize: '0.85rem'
-                        }}
-                      >
-                        ₹{pricePerUnit} per unit
-                      </Typography>
+                      </Box>
                       
                       {/* Mobile Quantity Controls */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           <IconButton 
                             size="small" 
@@ -325,8 +329,8 @@ const CartPage = () => {
                             sx={{ 
                               border: '1px solid', 
                               borderColor: 'divider',
-                              width: 32,
-                              height: 32
+                              width: 28,
+                              height: 28
                             }}
                           >
                             <RemoveIcon fontSize="small" />
@@ -338,7 +342,7 @@ const CartPage = () => {
                               minWidth: 24, 
                               textAlign: 'center', 
                               fontWeight: 600,
-                              fontSize: '1rem'
+                              fontSize: '0.95rem'
                             }}
                           >
                             {qty}
@@ -350,8 +354,8 @@ const CartPage = () => {
                             sx={{ 
                               border: '1px solid', 
                               borderColor: 'divider',
-                              width: 32,
-                              height: 32
+                              width: 28,
+                              height: 28
                             }}
                           >
                             <AddIcon fontSize="small" />
@@ -364,7 +368,7 @@ const CartPage = () => {
                             sx={{ 
                               fontWeight: 700, 
                               color: 'success.main',
-                              fontSize: '1.1rem'
+                              fontSize: '1rem'
                             }}
                           >
                             ₹{itemTotal}
