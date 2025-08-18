@@ -58,17 +58,63 @@ const CategoriesPage = () => {
       setLoadingProducts(true);
       try {
         const db = getFirestore();
-        // Fetch products from products/{categoryName}/items
-        const categoryName = selectedCategory.name;
-        const productsRef = collection(db, `products/${categoryName}/items`);
-        console.log('Firestore productsRef:', productsRef.path);
-        const q = query(productsRef, orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        console.log('Products querySnapshot:', querySnapshot);
-        const productsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        // Try products/{categoryId}/items first, then fallback to products/{categoryName}/items
+        const catId = selectedCategory.id;
+        const catName = selectedCategory.name;
+
+        let productsData = [];
+        let usedPath = '';
+
+        // Attempt with ID
+        try {
+          const refById = collection(db, `products/${catId}/items`);
+          const qById = query(refById, orderBy('createdAt', 'desc'));
+          const snapById = await getDocs(qById);
+          usedPath = refById.path;
+          if (!snapById.empty) {
+            productsData = snapById.docs.map(d => ({ id: d.id, ...d.data() }));
+            console.log('[CategoriesPage] Loaded via ID path:', usedPath, 'count:', productsData.length);
+          } else {
+            console.warn('[CategoriesPage] No products at ID path, trying name path...', usedPath);
+          }
+        } catch (innerErr) {
+          console.warn('[CategoriesPage] Error using ID path, will try name path next.', innerErr);
+        }
+
+        // Fallback with Name if needed
+        if (productsData.length === 0 && catName) {
+          const refByName = collection(db, `products/${catName}/items`);
+          const qByName = query(refByName, orderBy('createdAt', 'desc'));
+          const snapByName = await getDocs(qByName);
+          usedPath = refByName.path;
+          productsData = snapByName.docs.map(d => ({ id: d.id, ...d.data() }));
+          console.log('[CategoriesPage] Loaded via Name path:', usedPath, 'count:', productsData.length);
+        }
+
+        // Final fallback: fetch without orderBy in case createdAt is missing/unindexed
+        if (productsData.length === 0) {
+          try {
+            if (catId) {
+              const refByIdNoOrder = collection(db, `products/${catId}/items`);
+              const snapByIdNoOrder = await getDocs(refByIdNoOrder);
+              if (!snapByIdNoOrder.empty) {
+                productsData = snapByIdNoOrder.docs.map(d => ({ id: d.id, ...d.data() }));
+                console.log('[CategoriesPage] Fallback without orderBy via ID path:', refByIdNoOrder.path, 'count:', productsData.length);
+              }
+            }
+            if (productsData.length === 0 && catName) {
+              const refByNameNoOrder = collection(db, `products/${catName}/items`);
+              const snapByNameNoOrder = await getDocs(refByNameNoOrder);
+              if (!snapByNameNoOrder.empty) {
+                productsData = snapByNameNoOrder.docs.map(d => ({ id: d.id, ...d.data() }));
+                console.log('[CategoriesPage] Fallback without orderBy via Name path:', refByNameNoOrder.path, 'count:', productsData.length);
+              }
+            }
+          } catch (noOrderErr) {
+            console.warn('[CategoriesPage] Error during fallback without orderBy', noOrderErr);
+          }
+        }
+
         console.log('Fetched productsData:', productsData);
         setProducts(productsData);
         setLoadingProducts(false);
@@ -126,13 +172,13 @@ const CategoriesPage = () => {
     return filtered;
   };
   const filteredProducts = getFilteredProducts();
+  const isScrollable = loadingProducts || filteredProducts.length > 0;
   return (
-    <Box className="categories-root" sx={{ pb: 10, display: 'flex', flexDirection: 'row', position: 'relative' }}>
+    <Box className="categories-root" sx={{ pb: 2, display: 'flex', flexDirection: 'row', position: 'relative', gap: 2 }}>
       {/* Vertically stacked categories sidebar on the left */}
       <Box
         sx={{
           position: 'sticky',
-          top: 70,
           left: 0,
           bgcolor: '#fff',
           boxShadow: 2,
@@ -141,7 +187,7 @@ const CategoriesPage = () => {
           py: 1,
           minWidth: 90,
           maxWidth: 110,
-          maxHeight: '80vh',
+          maxHeight: 'calc(100vh - 90px)',
           overflowY: 'auto',
           borderRadius: 2,
           display: 'flex',
@@ -188,9 +234,18 @@ const CategoriesPage = () => {
           ))
         )}
       </Box>
-      {/* Products area */}
-  <Box sx={{ flex: '1 1 auto', pl: { xs: 2, md: 2 }, maxWidth: { xs: '100%', md: 'calc(100% - 100px)' } }}>
-       
+      {/* Products area (scrollable) */}
+      <Box
+        sx={{
+          flex: '1 1 auto',
+          pl: { xs: 1, md: 2 },
+          maxWidth: { xs: '100%', md: 'calc(100% - 120px)' },
+          maxHeight: isScrollable ? 'calc(100vh - 90px)' : 'none',
+          overflowY: isScrollable ? 'auto' : 'visible',
+          pt: 0,
+          pr: 1,
+        }}
+      >
         {/* Products Grid */}
         <Grid container spacing={2} sx={{ justifyContent: 'center', mb: 2 }}>
           {loadingProducts ? (
@@ -207,7 +262,11 @@ const CategoriesPage = () => {
             ))
           ) : filteredProducts.length === 0 ? (
             <Grid item xs={12}>
-              <Typography>No products found for this category.</Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', pt: 2, pb: 3 }}>
+                <Typography color="text.secondary" align="center">
+                  No products found for this category.
+                </Typography>
+              </Box>
             </Grid>
           ) : (
             filteredProducts.map(product => (

@@ -220,8 +220,23 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           </CardContent>
         </Box>
       </Link>
-      {/* Add to Cart Section */}
-      <Box className="add-to-cart-container" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 40, p: 0, m: 0, mt: 0, gap: 0 }}>
+      {/* Add to Cart Section (fixed height to prevent layout shift) */}
+      <Box
+        className="add-to-cart-container"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          height: 56,
+          minHeight: 56,
+          p: 0,
+          m: 0,
+          mt: 0,
+          gap: 0,
+        }}
+      >
         {/* Show Add to Cart button only if not showing quantity selector for single option products */}
         {(!showQuantity || hasMultipleOptions) && (
           <Button
@@ -229,16 +244,17 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
             className="add-to-cart-btn"
             onClick={handleAddToCartClick}
             disabled={product.outOfStock}
+            sx={{ height: 40, minHeight: 40, borderRadius: 2, px: 2 }}
           >
             {hasMultipleOptions ? 'Choose Options' : 'Add to Cart'}
           </Button>
         )}
         {/* Show quantity controls only for single option products after adding to cart */}
         {showQuantity && !hasMultipleOptions && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', mb: 0, height: 40 }}>
             <IconButton size="small" sx={{
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               flexShrink: 0,
               borderRadius: '50%',
               bgcolor: 'success.main',
@@ -257,10 +273,10 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
             }}>
               <RemoveIcon fontSize="small" />
             </IconButton>
-            <Typography sx={{ mx: 1.5, minWidth: 24, textAlign: 'center', fontSize: '1rem', fontWeight: 600 }}>{addQuantity}</Typography>
+            <Typography sx={{ mx: 1.5, minWidth: 28, textAlign: 'center', fontSize: '1rem', fontWeight: 600, lineHeight: '36px' }}>{addQuantity}</Typography>
             <IconButton size="small" sx={{
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               flexShrink: 0,
               borderRadius: '50%',
               bgcolor: 'success.main',

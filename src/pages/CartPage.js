@@ -253,6 +253,22 @@ const CartPage = () => {
                 >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
+                {/* Unit price below bin icon */}
+                <Typography
+                  variant="caption"
+                  sx={{
+                    position: 'absolute',
+                    top: 44,
+                    right: 8,
+                    color: 'text.secondary',
+                    bgcolor: 'rgba(255,255,255,0.85)',
+                    px: 0.5,
+                    borderRadius: 0.5,
+                    fontWeight: 600
+                  }}
+                >
+                  ₹{pricePerUnit} per unit
+                </Typography>
                 <CardContent sx={{ p: 2 }}>
                   <Box sx={{ display: 'flex', gap: 1.5 }}>
                     {/* Product Image */}
@@ -315,7 +331,7 @@ const CartPage = () => {
                             ml: 1
                           }}
                         >
-                          ₹{pricePerUnit} per unit
+                          {/* Unit price moved below bin icon */}
                         </Typography>
                       </Box>
                       

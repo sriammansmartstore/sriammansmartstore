@@ -104,7 +104,7 @@ const WishlistDetailPage = () => {
                       const idx = selectedOptionIdx[product.id] ?? 0;
                       const opt = product.options[idx];
                       if (opt) {
-                        const price = opt.specialPrice ?? opt.sellingPrice ?? opt.mrp;
+                        const price = opt.sellingPrice ?? opt.specialPrice ?? opt.mrp;
                         return `₹${price} / ${opt.unitSize} ${opt.unit}`;
                       }
                     }
@@ -131,7 +131,7 @@ const WishlistDetailPage = () => {
               const selected = products.map(p => {
                 let optionIdx = selectedOptionIdx[p.id] ?? 0;
                 let opt = Array.isArray(p.options) && p.options.length > 0 ? p.options[optionIdx] : null;
-                let price = opt ? (opt.specialPrice ?? opt.sellingPrice ?? opt.mrp) : p.price;
+                let price = opt ? (opt.sellingPrice ?? opt.specialPrice ?? opt.mrp) : p.price;
                 let unit = opt ? opt.unit : p.unit;
                 let unitSize = opt ? opt.unitSize : undefined;
                 return {
