@@ -12,7 +12,7 @@ import SEO from "../components/SEO";
 
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
-import { doc, setDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
+import { doc, setDoc, collection, getDocs, query, orderBy, collectionGroup } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 const Banner = styled(Box)(({ theme }) => ({
@@ -124,25 +124,54 @@ const HomePage = () => {
   const isDeliverable = area && typeof area === 'string' && area.toLowerCase().includes("coimbatore");
 
   useEffect(() => {
-    // Fetch all products from all categories' items subcollections
+    // Fetch all products from all categories using a collectionGroup on 'items'
     const fetchProducts = async () => {
       try {
-        // 1. Get all categories
-        const categoriesSnapshot = await getDocs(collection(db, "categories"));
-        const categories = categoriesSnapshot.docs.map(doc => doc.data().name);
+        console.log('[HomePage] Fetching products...');
         let allProducts = [];
-        // 2. For each category, fetch products from products/{category}/items
-        for (const category of categories) {
-          const itemsRef = collection(db, "products", category, "items");
-          const q = query(itemsRef, orderBy("createdAt", "desc"));
-          const snapshot = await getDocs(q);
-          const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), category }));
-          allProducts = allProducts.concat(products);
+        try {
+          // Preferred: collectionGroup query across all category items (no orderBy to avoid index requirement)
+          const qy = query(collectionGroup(db, 'items'));
+          const snapshot = await getDocs(qy);
+          console.log('[HomePage] collectionGroup(items) snapshot size:', snapshot.size);
+          if (snapshot.size > 0) {
+            const first = snapshot.docs[0];
+            console.log('[HomePage] First item path:', first.ref.path, 'keys:', Object.keys(first.data() || {}));
+          }
+          allProducts = snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            // parent of 'items' is the category doc under 'products/{category}'
+            category: d.ref.parent?.parent?.id,
+          }));
+        } catch (cgErr) {
+          // Fallback: iterate categories collection if collectionGroup requires an index
+          console.warn('collectionGroup query failed, falling back. Error:', cgErr);
+          const categoriesSnapshot = await getDocs(collection(db, "categories"));
+          const categories = categoriesSnapshot.docs
+            .map(d => d.data()?.name || d.id)
+            .filter(Boolean);
+          console.log('[HomePage] Fallback categories:', categories);
+          for (const category of categories) {
+            try {
+              const itemsRef = collection(db, "products", category, "items");
+              const qy2 = query(itemsRef, orderBy("createdAt", "desc"));
+              const snap2 = await getDocs(qy2);
+              console.log(`[HomePage] Category ${category} items fetched:`, snap2.size);
+              const prods = snap2.docs.map(doc => ({ id: doc.id, ...doc.data(), category }));
+              allProducts = allProducts.concat(prods);
+            } catch (catErr) {
+              console.error(`Error fetching products for category ${category}:`, catErr);
+            }
+          }
         }
-        // 3. Sort all products by createdAt (desc)
+        // Final sort client-side (covers both paths)
         allProducts.sort((a, b) => (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt)));
         setProducts(allProducts);
-        console.log("Fetched all products:", allProducts);
+        console.log('[HomePage] Total products fetched:', allProducts.length);
+        if (allProducts.length > 0) {
+          console.log('[HomePage] Sample products:', allProducts.slice(0, 3).map(p => ({ id: p.id, name: p.name, category: p.category })));
+        }
       } catch (err) {
         setProducts([]);
         console.error("Error fetching products:", err);
@@ -219,6 +248,20 @@ const HomePage = () => {
 
   const filteredProducts = getFilteredProducts();
 
+  // Diagnostics: log why filtered products may be empty
+  useEffect(() => {
+    const count = getFilteredProducts().length;
+    console.log('[HomePage] Diagnostics:', {
+      loading,
+      productsCount: products.length,
+      filteredCount: count,
+      search,
+      sort,
+      filters,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, loading, search, sort, filters]);
+
   return (
     <Box className="home-root" sx={{ position: 'relative', pb: 10 }}>
       <SEO
@@ -226,10 +269,7 @@ const HomePage = () => {
         description="Shop groceries and daily essentials online from Sri Amman Smart Store. Discover fresh products, best prices, and fast delivery in Coimbatore."
         type="website"
       />
-
-      
-     
-             <TextField
+       <TextField
         className="search-bar"
         label="Search products"
         variant="outlined"

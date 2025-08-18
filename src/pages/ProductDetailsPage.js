@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useContext } from "react";
 import './ProductDetailsPage.css';
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, Card, CardMedia, CardContent, Button, IconButton, Divider, Rating, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Badge } from "@mui/material";
 import WishlistWidget from '../components/WishlistWidget';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import RemoveIcon from "@mui/icons-material/Remove";
+import AddIcon from "@mui/icons-material/Add";
 import { getDiscount } from "../utils/productUtils";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
@@ -17,6 +19,7 @@ import SEO from "../components/SEO";
 const ProductDetailsPage = () => {
   // wishlist state moved into WishlistWidget
   const { category, id } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState();
   const [quantity, setQuantity] = useState(1);
   const [showFullDesc, setShowFullDesc] = useState(false);
@@ -112,6 +115,7 @@ const ProductDetailsPage = () => {
         console.log('[Cart] Added new doc with ID:', addedDoc.id);
       }
       setCartAdded(true);
+      setInCart(true);
       setTimeout(() => setCartAdded(false), 1500);
     } catch (err) {
       alert("Failed to add to cart.");
@@ -125,15 +129,18 @@ const ProductDetailsPage = () => {
     // Fetch product by id from Firestore (modular v9 syntax)
     const fetchProduct = async () => {
       try {
+        console.log('[PDP] Fetch product start', { category, id });
         if (!category || !id) {
           setProduct(null);
           return;
         }
         const ref = doc(db, "products", category, "items", id);
         const snap = await getDoc(ref);
+        console.log('[PDP] Product doc path:', ref.path, 'exists:', snap.exists());
         if (snap.exists()) setProduct({ id: snap.id, ...snap.data() });
         else setProduct(null);
       } catch (err) {
+        console.error('[PDP] Error fetching product', err);
         setProduct(null);
       }
     };
@@ -148,8 +155,10 @@ const ProductDetailsPage = () => {
         const reviewsRef = collection(db, "products", category, "items", id, "reviews");
         const q = orderBy ? query(reviewsRef, orderBy("createdAt", "desc")) : reviewsRef;
         const snap = await getDocs(q);
+        console.log('[PDP] Reviews fetched:', snap.size);
         setReviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (err) {
+        console.error('[PDP] Error fetching reviews', err);
         setReviews([]);
       }
     };
@@ -164,8 +173,11 @@ const ProductDetailsPage = () => {
         const productsRef = collection(db, "products", category, "items");
         const q = query(productsRef, orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
-        setOtherProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(p => p.id !== id));
+        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(p => p.id !== id);
+        console.log('[PDP] Other products fetched:', snap.size, 'after filter:', list.length);
+        setOtherProducts(list);
       } catch (err) {
+        console.error('[PDP] Error fetching other products', err);
         setOtherProducts([]);
       }
     };
@@ -185,6 +197,34 @@ const ProductDetailsPage = () => {
   const avgRating = reviews.length ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : null;
   const [cartLoading, setCartLoading] = useState(false);
   const [cartAdded, setCartAdded] = useState(false);
+  const [inCart, setInCart] = useState(false);
+
+  // Check if selected option of this product is already in the user's cart
+  useEffect(() => {
+    const checkInCart = async () => {
+      try {
+        if (!user || !product) { setInCart(false); return; }
+        const selected = options[selectedOptionIdx] || options[0];
+        if (!selected?.unit || !selected?.unitSize) { setInCart(false); return; }
+        const cartRef = collection(db, "users", user.uid, "cart");
+        const qy = query(
+          cartRef,
+          where('productId', '==', product.id),
+          where('unit', '==', selected.unit),
+          where('unitSize', '==', selected.unitSize)
+        );
+        const snap = await getDocs(qy);
+        const present = !snap.empty;
+        console.log('[PDP] Cart check', { productId: product.id, unit: selected.unit, unitSize: selected.unitSize, present });
+        setInCart(present);
+      } catch (e) {
+        console.error('[PDP] Cart check error', e);
+        setInCart(false);
+      }
+    };
+    checkInCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, product, selectedOptionIdx]);
 
   // Guard: product undefined => still loading; product === null => not found
   if (product === undefined) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading...</Typography>;
@@ -306,23 +346,50 @@ const ProductDetailsPage = () => {
 {/* ...existing code... */}
 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
   <Typography variant="body2" sx={{ fontWeight: 700, color: '#555', mr: 1 }}>Qty</Typography>
-  <IconButton size="small" onClick={e => { e.stopPropagation(); setQuantity(q => Math.max(1, q - 1)); }} sx={{ color: '#388e3c', border: '1.5px solid #388e3c', borderRadius: 2, background: '#fff', '&:hover': { background: '#e0ffe6' }, mx: 0.5 }}>
-    <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>-</span>
+  <IconButton size="small" sx={{
+    width: 32,
+    height: 32,
+    flexShrink: 0,
+    borderRadius: '50%',
+    bgcolor: 'success.main',
+    color: '#fff',
+    '&:hover': { bgcolor: 'success.dark' }
+  }} onClick={e => { e.stopPropagation(); setQuantity(q => Math.max(1, q - 1)); }}>
+    <RemoveIcon fontSize="small" />
   </IconButton>
-  <Typography variant="h6" sx={{ mx: 1, minWidth: 28, textAlign: 'center', fontWeight: 700, color: '#222', letterSpacing: 1 }}>{quantity}</Typography>
-  <IconButton size="small" onClick={e => { e.stopPropagation(); setQuantity(q => q + 1); }} sx={{ color: '#388e3c', border: '1.5px solid #388e3c', borderRadius: 2, background: '#fff', '&:hover': { background: '#e0ffe6' }, mx: 0.5 }}>
-    <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>+</span>
+  <Typography variant="h6" sx={{ mx: 1.5, minWidth: 28, textAlign: 'center', fontWeight: 700, color: '#222', letterSpacing: 1 }}>{quantity}</Typography>
+  <IconButton size="small" sx={{
+    width: 32,
+    height: 32,
+    flexShrink: 0,
+    borderRadius: '50%',
+    bgcolor: 'success.main',
+    color: '#fff',
+    '&:hover': { bgcolor: 'success.dark' }
+  }} onClick={e => { e.stopPropagation(); setQuantity(q => q + 1); }}>
+    <AddIcon fontSize="small" />
   </IconButton>
 </Box>
-<Button
-  variant="contained"
-  startIcon={<AddShoppingCartIcon />}
-  sx={{ width: '100%', py: 1.2, fontSize: '1.08rem', fontWeight: 700, borderRadius: 2, boxShadow: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}
-  onClick={handleAddToCartClick}
-  disabled={cartLoading || product.outOfStock}
->
-  <span>{cartAdded ? 'Added!' : 'Add to Cart'}</span>
-</Button>
+{inCart ? (
+  <Button
+    variant="contained"
+    color="primary"
+    sx={{ width: '100%', py: 1.2, fontSize: '1.08rem', fontWeight: 700, borderRadius: 2, boxShadow: 2 }}
+    onClick={() => navigate('/cart')}
+  >
+    Go to Cart
+  </Button>
+) : (
+  <Button
+    variant="contained"
+    startIcon={<AddShoppingCartIcon />}
+    sx={{ width: '100%', py: 1.2, fontSize: '1.08rem', fontWeight: 700, borderRadius: 2, boxShadow: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}
+    onClick={handleAddToCartClick}
+    disabled={cartLoading || product.outOfStock}
+  >
+    <span>{cartAdded ? 'Added!' : 'Add to Cart'}</span>
+  </Button>
+)}
           {/* Description with Read More */}
           <Box sx={{ mt: 2 }}>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
@@ -343,60 +410,7 @@ const ProductDetailsPage = () => {
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{avgRating || "No ratings yet"}</Typography>
               <Typography variant="body2" sx={{ color: '#888', ml: 1 }}>({reviews.length} reviews)</Typography>
             </Box>
-            {/* Add Review Form */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2, mt: 1, p: 1, bgcolor: '#f7f7f7', borderRadius: 2 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Your Rating:</Typography>
-              <Rating value={userRating} onChange={(e, v) => setUserRating(v)} size="large" />
-              <TextField
-                label="Your Review"
-                multiline
-                minRows={2}
-                value={userReview}
-                onChange={e => setUserReview(e.target.value)}
-                sx={{ mt: 1 }}
-                disabled={!user}
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                sx={{ mt: 1, alignSelf: 'flex-end', fontWeight: 600, fontSize: '0.98rem' }}
-                disabled={reviewLoading || !userRating || !userReview.trim() || !user}
-                onClick={async () => {
-                  if (!user) {
-                    alert('Please login to write a review.');
-                    return;
-                  }
-                  setReviewLoading(true);
-                  try {
-                    // Use logged-in user's name or email
-                    const reviewerName = userDetails?.name || user.displayName || user.email || 'Anonymous';
-                    await addDoc(collection(db, "products", category, "items", id, "reviews"), {
-                      reviewer: reviewerName,
-                      rating: userRating,
-                      review: userReview.trim(),
-                      createdAt: new Date(),
-                    });
-                    setUserRating(0);
-                    setUserReview("");
-                    // Refresh reviews
-                    const reviewsRef = collection(db, "products", category, "items", id, "reviews");
-                    const q = orderBy ? query(reviewsRef, orderBy("createdAt", "desc")) : reviewsRef;
-                    const snap = await getDocs(q);
-                    setReviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                  } catch (err) {
-                    // Optionally show error
-                  }
-                  setReviewLoading(false);
-                }}
-              >
-                Submit Review
-              </Button>
-              {!user && (
-                <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-                  Please login to write a review.
-                </Typography>
-              )}
-            </Box>
+            {/* Review submission removed as per requirement */}
             {/* List of Reviews */}
             <Box sx={{ mt: 1 }}>
               {reviews.length === 0 ? (
