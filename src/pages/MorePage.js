@@ -1,41 +1,84 @@
 import React, { useContext, useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Button, Dialog, IconButton, Divider, Collapse } from "@mui/material";
-import EditIcon from '@mui/icons-material/Edit';
-import CloseIcon from '@mui/icons-material/Close';
-import ExpandLess from '@mui/icons-material/ExpandLess';
-import ExpandMore from '@mui/icons-material/ExpandMore';
-import UserDataPage from "./UserDataPage";
+import { 
+  Box, 
+  Typography, 
+  List, 
+  ListItem, 
+  ListItemButton, 
+  ListItemIcon, 
+  ListItemText, 
+  Button, 
+  Dialog, 
+  IconButton, 
+  Divider, 
+  Collapse, 
+  Avatar,
+  Paper,
+  alpha,
+  CircularProgress
+} from "@mui/material";
+import { styled } from '@mui/material/styles';
+import {
+  Close as CloseIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
+  Edit as EditIcon,
+  Home as HomeIcon,
+  Lock as LockIcon,
+  ShoppingBag as ShoppingBagIcon,
+  Payment as PaymentIcon,
+  Notifications as NotificationsIcon,
+  Email as EmailIcon,
+  Info as InfoIcon,
+  Report as ReportIcon,
+  ExitToApp as LogoutIcon,
+  Person as PersonIcon,
+  LocationOn as AddressIcon,
+  LocalShipping as ShippingIcon,
+  AssignmentReturn as ReturnIcon,
+  Gavel as GavelIcon,
+  Policy as PolicyIcon,
+  Receipt as ReceiptIcon
+} from '@mui/icons-material';
 
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
-import { doc, getDoc } from "firebase/firestore";
+import UserDataPage from "./UserDataPage";
 
-const policyLinks = [
-  { label: "Terms and Conditions", path: "/terms" },
-  { label: "Privacy Policy", path: "/privacy" },
-  { label: "Refund & Cancellation Policy", path: "/refund-cancellation" },
-  { label: "Shipping Policy", path: "/shipping" },
-  { label: "Return Policy", path: "/return" },
+const menuItems = [
+  { label: "Home", path: "/", icon: <HomeIcon color="primary" /> },
+  { label: "My Orders", path: "/orders", icon: <ShoppingBagIcon sx={{ color: '#ff6d00' }} /> },
+  { label: "Addresses", path: "/addresses", icon: <AddressIcon sx={{ color: '#00c853' }} /> },
+  { label: "Notifications", path: "/notifications", icon: <NotificationsIcon sx={{ color: '#ffab00' }} /> },
+  { label: "Change Password", path: "/settings", icon: <LockIcon sx={{ color: '#c51162' }} /> },
+  { label: "Contact Us", path: "/contact", icon: <EmailIcon sx={{ color: '#00b8d4' }} /> },
+  { label: "About Us", path: "/about", icon: <InfoIcon sx={{ color: '#0091ea' }} /> },
+  { label: "Report a Problem", path: "/report", icon: <ReportIcon color="error" /> },
 ];
 
-const baseLinks = [
-  { label: "Addresses", path: "/addresses" },
-  { label: "Change Password", path: "/settings" },
-  { label: "My Orders", path: "/orders" },
-  { label: "Payment Options", path: "/payment" },
-  { label: "Notifications", path: "/notifications" },
-  { label: "Contact Us", path: "/contact" },
-  { label: "About Us", path: "/about" },
-  { label: "Report a Problem", path: "/report" },
+const policyItems = [
+  { label: "Terms and Conditions", path: "/terms", icon: <GavelIcon sx={{ color: '#7b1fa2' }} /> },
+  { label: "Privacy Policy", path: "/privacy", icon: <PolicyIcon sx={{ color: '#455a64' }} /> },
+  { label: "Refund & Cancellation", path: "/refund-cancellation", icon: <ReceiptIcon sx={{ color: '#ff6d00' }} /> },
+  { label: "Shipping Policy", path: "/shipping", icon: <ShippingIcon sx={{ color: '#00c853' }} /> },
+  { label: "Return Policy", path: "/return", icon: <ReturnIcon sx={{ color: '#0091ea' }} /> },
 ];
 
+const StyledListItem = styled(ListItem)(({ theme }) => ({
+  '&:hover': {
+    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+    borderRadius: theme.shape.borderRadius,
+  },
+  marginBottom: theme.spacing(0.5),
+}));
 
 const MorePage = ({ onClose }) => {
   const navigate = useNavigate();
   const { user, userDetails } = useContext(AuthContext);
   const [editOpen, setEditOpen] = useState(false);
+  const [policiesOpen, setPoliciesOpen] = useState(false);
   const [profile, setProfile] = useState({ fullName: '', number: '', countryCode: '+91' });
 
   useEffect(() => {
@@ -56,7 +99,7 @@ const MorePage = ({ onClose }) => {
       if (onClose) onClose();
       navigate("/login");
     } catch (error) {
-      alert("Logout failed. Please try again.");
+      console.error("Logout error:", error);
     }
   };
 
@@ -65,135 +108,283 @@ const MorePage = ({ onClose }) => {
     navigate("/login");
   };
 
-  // Hide 'Change Password' if user is Google login
-  let moreLinks = baseLinks;
-  if (user && user.providerData && user.providerData.some(p => p.providerId === 'google.com')) {
-    moreLinks = baseLinks.filter(link => link.label !== 'Change Password');
-  }
-
-  // Inline DropdownPolicies component to avoid circular import
-  function DropdownPoliciesInline({ onClose, navigate }) {
-    const [open, setOpen] = React.useState(false);
-    const policyLinks = [
-      { label: "Terms and Conditions", path: "/terms" },
-      { label: "Privacy Policy", path: "/privacy" },
-      { label: "Refund & Cancellation Policy", path: "/refund-cancellation" },
-      { label: "Shipping Policy", path: "/shipping" },
-      { label: "Return Policy", path: "/return" },
-    ];
-    return (
-      <>
-        <ListItemButton onClick={() => setOpen((prev) => !prev)} sx={{ pl: 2 }}>
-          <ListItemText primary="Policies" />
-          {open ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
-        <Collapse in={open} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
-            {policyLinks.map((link) => (
-              <ListItem key={link.path} disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    if (onClose) onClose();
-                    navigate(link.path);
-                  }}
-                  sx={{ pl: 4 }}
-                >
-                  <ListItemText primary={link.label} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-          <Divider sx={{ my: 1 }} />
-        </Collapse>
-      </>
-    );
-  }
+  // Filter menu items based on user login status
+  const filteredMenuItems = user ? 
+    (user.providerData?.some(p => p.providerId === 'google.com') 
+      ? menuItems.filter(item => item.label !== 'Change Password')
+      : menuItems)
+    : [];
 
   return (
     <Box sx={{
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#fff',
+      bgcolor: 'background.paper',
       minWidth: 320,
       maxWidth: 400,
       position: 'relative',
     }}>
-      {/* Drawer Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 2, pb: 1 }}>
-        <IconButton onClick={onClose} sx={{ mr: 1 }} size="large" aria-label="Close Drawer">
-          <CloseIcon />
-        </IconButton>
-        <Typography variant="h6" color="primary" fontWeight={700} sx={{ flex: 1, fontFamily: 'Montserrat', letterSpacing: 0.4 }}>
-          More
-        </Typography>
+      {/* Header */}
+      <Box sx={{ 
+        px: 2, 
+        pt: 2, 
+        pb: 1,
+        position: 'sticky',
+        top: 0,
+        zIndex: 1,
+        bgcolor: 'background.paper',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+      }}>
+        <Box display="flex" alignItems="center">
+          <IconButton 
+            onClick={onClose} 
+            sx={{ mr: 1, color: 'text.primary' }}
+            size="large"
+          >
+            <CloseIcon />
+          </IconButton>
+          <Typography 
+            variant="h6" 
+            color="primary" 
+            fontWeight={700} 
+            sx={{ 
+              fontFamily: 'Montserrat', 
+              letterSpacing: 0.5,
+              flexGrow: 1
+            }}
+          >
+            Menu
+          </Typography>
+        </Box>
       </Box>
+      
       <Divider />
-      {user === undefined ? null : user ? (
+
+      {user === undefined ? (
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <CircularProgress />
+        </Box>
+      ) : user ? (
         <>
           {/* Profile Section */}
-          <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="h5" color="primary" fontWeight={700} sx={{ textTransform: 'capitalize', fontFamily: 'Montserrat' }}>
-                {profile.fullName || 'Your Name'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" fontWeight={500} sx={{ mt: 0.5 }}>
-                {(profile.number ? `${profile.countryCode} ${profile.number}` : 'Contact Number')}
-              </Typography>
-            </Box>
-            {user && (
-              <IconButton color="primary" onClick={() => setEditOpen(true)} size="small" sx={{ ml: 1 }} title="Edit Profile">
-                <EditIcon />
+          <Paper 
+            elevation={0}
+            sx={{ 
+              m: 2, 
+              p: 2, 
+              borderRadius: 2,
+              background: (theme) => 
+                `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
+              border: '1px solid',
+              borderColor: 'divider'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Avatar 
+                sx={{ 
+                  width: 56, 
+                  height: 56, 
+                  mr: 2,
+                  bgcolor: 'primary.main',
+                  color: 'primary.contrastText'
+                }}
+              >
+                {profile.fullName ? profile.fullName.charAt(0).toUpperCase() : <PersonIcon />}
+              </Avatar>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography 
+                  variant="subtitle1" 
+                  fontWeight={600} 
+                  noWrap
+                  sx={{ color: 'text.primary' }}
+                >
+                  {profile.fullName || 'Welcome!'}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  noWrap
+                >
+                  {profile.number ? `${profile.countryCode} ${profile.number}` : 'Tap to edit profile'}
+                </Typography>
+              </Box>
+              <IconButton 
+                onClick={() => setEditOpen(true)}
+                size="small"
+                sx={{ 
+                  ml: 1,
+                  bgcolor: 'background.paper',
+                  '&:hover': {
+                    bgcolor: 'action.hover'
+                  }
+                }}
+              >
+                <EditIcon fontSize="small" />
               </IconButton>
-            )}
-          </Box>
-          <Divider />
-          {/* Links Section */}
+            </Box>
+          </Paper>
+
+          {/* Menu Items */}
           <Box sx={{ flex: 1, overflowY: 'auto', px: 1, py: 1 }}>
-            <List>
-              {moreLinks.map(link => (
-                <ListItem key={link.path} disablePadding>
-                  <ListItemButton onClick={() => { if (onClose) onClose(); navigate(link.path); }}>
-                    <ListItemText primary={link.label} />
+            <List disablePadding>
+              {filteredMenuItems.map((item) => (
+                <StyledListItem key={item.path} disablePadding>
+                  <ListItemButton 
+                    onClick={() => { 
+                      if (onClose) onClose(); 
+                      navigate(item.path); 
+                    }}
+                    sx={{ px: 2, py: 1.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 40 }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        variant: 'body1',
+                        fontWeight: 500,
+                        color: 'text.primary'
+                      }}
+                    />
                   </ListItemButton>
-                </ListItem>
+                </StyledListItem>
               ))}
-              {/* Policy Links Dropdown */}
-              <DropdownPoliciesInline onClose={onClose} navigate={navigate} />
+
+              {/* Policies Section */}
+              <StyledListItem disablePadding>
+                <ListItemButton 
+                  onClick={() => setPoliciesOpen(!policiesOpen)}
+                  sx={{ px: 2, py: 1.25 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    <GavelIcon sx={{ color: '#7b1fa2' }} />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Policies"
+                    primaryTypographyProps={{
+                      variant: 'body1',
+                      fontWeight: 500,
+                      color: 'text.primary'
+                    }}
+                  />
+                  {policiesOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </ListItemButton>
+              </StyledListItem>
+              
+              <Collapse in={policiesOpen} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding>
+                  {policyItems.map((item) => (
+                    <StyledListItem key={item.path} disablePadding>
+                      <ListItemButton
+                        onClick={() => {
+                          if (onClose) onClose();
+                          navigate(item.path);
+                        }}
+                        sx={{ pl: 7, py: 1 }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 40 }}>
+                          {item.icon}
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={item.label}
+                          primaryTypographyProps={{
+                            variant: 'body2',
+                            color: 'text.secondary'
+                          }}
+                        />
+                      </ListItemButton>
+                    </StyledListItem>
+                  ))}
+                </List>
+              </Collapse>
             </List>
           </Box>
-          {/* Edit Profile Dialog */}
-          <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="xs" fullWidth>
-            <UserDataPage editMode={true} onSave={() => setEditOpen(false)} />
-          </Dialog>
+
           {/* Logout Button */}
-          <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+          <Box sx={{ p: 2, position: 'sticky', bottom: 0, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider' }}>
             <Button
-              variant="contained"
+              variant="outlined"
               color="error"
-              sx={{ fontWeight: 700, width: '100%' }}
+              fullWidth
+              startIcon={<LogoutIcon />}
               onClick={handleLogout}
+              sx={{
+                py: 1.5,
+                fontWeight: 600,
+                borderRadius: 2,
+                textTransform: 'none',
+                '&:hover': {
+                  bgcolor: 'error.light',
+                  color: 'error.contrastText',
+                }
+              }}
             >
               Logout
             </Button>
           </Box>
+
+          {/* Edit Profile Dialog */}
+          <Dialog 
+            open={editOpen} 
+            onClose={() => setEditOpen(false)} 
+            maxWidth="sm" 
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 2,
+                maxHeight: '90vh'
+              }
+            }}
+          >
+            <UserDataPage editMode={true} onSave={() => setEditOpen(false)} />
+          </Dialog>
         </>
       ) : (
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', px: 2, py: 2 }}>
-          <Typography variant="h6" color="primary" fontWeight={700} sx={{ mb: 2, textAlign: 'center' }}>
-            Login to see all options
+        /* Login Prompt */
+        <Box sx={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          p: 4,
+          textAlign: 'center'
+        }}>
+          <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2, opacity: 0.8 }} />
+          <Typography variant="h6" color="text.primary" fontWeight={600} gutterBottom>
+            Welcome to Sri Amman Smart Store
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 320 }}>
+            Login to access your orders, addresses, payment options, and more.
           </Typography>
           <Button
             variant="contained"
-            color="success"
-            sx={{ fontWeight: 700, width: '100%' }}
+            color="primary"
+            size="large"
+            fullWidth
             onClick={handleLogin}
+            sx={{
+              py: 1.5,
+              fontWeight: 600,
+              borderRadius: 2,
+              textTransform: 'none',
+              fontSize: '1rem',
+              maxWidth: 280,
+              '&:hover': {
+                boxShadow: 4,
+                transform: 'translateY(-1px)',
+                transition: 'all 0.2s'
+              }
+            }}
           >
-            Login
+            Login / Sign Up
           </Button>
         </Box>
       )}
     </Box>
   );
 };
+
 export default MorePage;

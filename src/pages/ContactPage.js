@@ -335,7 +335,8 @@ const ContactPage = () => {
                     required
                     fullWidth
                     multiline
-                    rows={{ xs: 3, sm: 4 }}
+                    minRows={3}
+                    maxRows={8}
                     variant="outlined"
                     disabled={loading}
                     placeholder="Tell us how we can help you..."
