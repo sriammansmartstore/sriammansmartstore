@@ -17,7 +17,7 @@ import WishlistWidget from './WishlistWidget';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
 import { updateDoc } from "firebase/firestore";
@@ -38,6 +38,7 @@ const getDiscount = (mrp, sellingPrice) => {
 };
 
 const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
+  const navigate = useNavigate();
   // Prevent multiple rapid cart updates
   const pendingQuantityRef = React.useRef(null);
   const [updatingQuantity, setUpdatingQuantity] = useState(false);
@@ -50,6 +51,10 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const option = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
   const discount = getDiscount(option.mrp, option.sellingPrice);
   const { user } = useContext(AuthContext);
+  // cart state awareness
+  const [inCartAnyVariant, setInCartAnyVariant] = useState(false);
+  const [hasCurrentVariantInCart, setHasCurrentVariantInCart] = useState(false);
+  const [currentVariantQty, setCurrentVariantQty] = useState(0);
 
   // wishlist fetching moved into WishlistWidget
 
@@ -138,6 +143,54 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   };
 
   // wishlist handlers moved to WishlistWidget
+
+  // Detect if any variant of this product exists in cart
+  useEffect(() => {
+    const checkAnyVariant = async () => {
+      try {
+        if (!user) { setInCartAnyVariant(false); return; }
+        const cartRef = collection(db, 'users', user.uid, 'cart');
+        const qAny = query(cartRef, where('productId', '==', product.id));
+        const snap = await getDocs(qAny);
+        setInCartAnyVariant(!snap.empty);
+      } catch (_) {
+        setInCartAnyVariant(false);
+      }
+    };
+    checkAnyVariant();
+  }, [user, product.id]);
+
+  // Detect if current selected variant exists in cart; if so, show qty controls
+  useEffect(() => {
+    const checkCurrentVariant = async () => {
+      try {
+        if (!user) { setHasCurrentVariantInCart(false); return; }
+        const opt = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
+        const cartRef = collection(db, 'users', user.uid, 'cart');
+        const qVar = query(
+          cartRef,
+          where('productId', '==', product.id),
+          where('unit', '==', opt.unit),
+          where('unitSize', '==', opt.unitSize)
+        );
+        const snap = await getDocs(qVar);
+        if (!snap.empty) {
+          const d = snap.docs[0].data();
+          const qty = d.quantity || 1;
+          setHasCurrentVariantInCart(true);
+          setCurrentVariantQty(qty);
+          setAddQuantity(qty);
+          setShowQuantity(true);
+        } else {
+          setHasCurrentVariantInCart(false);
+        }
+      } catch (_) {
+        setHasCurrentVariantInCart(false);
+      }
+    };
+    checkCurrentVariant();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, product.id, selectedOptionIdx]);
 
   return (
     <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'hidden', maxWidth: 180, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
@@ -229,7 +282,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           alignItems: 'center',
           justifyContent: 'center',
           width: '100%',
-          height: 56,
+          height: hasMultipleOptions ? 'auto' : 56,
           minHeight: 56,
           p: 0,
           m: 0,
@@ -238,16 +291,41 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
         }}
       >
         {/* Show Add to Cart button only if not showing quantity selector for single option products */}
-        {(!showQuantity || hasMultipleOptions) && (
-          <Button
-            variant="contained"
-            className="add-to-cart-btn"
-            onClick={handleAddToCartClick}
-            disabled={product.outOfStock}
-            sx={{ height: 40, minHeight: 40, borderRadius: 2, px: 2 }}
-          >
-            {hasMultipleOptions ? 'Choose Options' : 'Add to Cart'}
-          </Button>
+        {hasMultipleOptions ? (
+          <Box sx={{ width: '100%', px: 1, pb: 1 }}>
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              fullWidth
+              className="add-to-cart-btn"
+              onClick={handleAddToCartClick}
+              disabled={product.outOfStock}
+              sx={{ height: 36, minHeight: 36, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
+            >
+              {inCartAnyVariant ? 'Add Another' : 'Add Options'}
+            </Button>
+          </Box>
+        ) : (
+          (!showQuantity) && (
+            <Button
+              variant="contained"
+              className="add-to-cart-btn"
+              onClick={(e) => {
+                if (hasCurrentVariantInCart) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/cart');
+                } else {
+                  handleAddToCartClick(e);
+                }
+              }}
+              disabled={product.outOfStock}
+              sx={{ height: 40, minHeight: 40, borderRadius: 2, px: 2 }}
+            >
+              {hasCurrentVariantInCart ? 'Go to Cart' : 'Add to Cart'}
+            </Button>
+          )
         )}
         {/* Show quantity controls only for single option products after adding to cart */}
         {showQuantity && !hasMultipleOptions && (

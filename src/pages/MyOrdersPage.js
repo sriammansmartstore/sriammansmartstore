@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { Box, Typography, IconButton, Grid, Card, CardContent, Chip, Button, Dialog, DialogTitle, DialogContent, List, ListItem, ListItemText, Divider, CircularProgress } from '@mui/material';
+import { Box, Typography, IconButton, Grid, Card, CardContent, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider, CircularProgress, TextField, Stack, Tooltip, Snackbar, Alert } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { useLocation } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
+
 const formatDate = (d) => {
   if (!d) return '';
   let dateObj = null;
@@ -22,10 +23,24 @@ const formatDate = (d) => {
   }
 };
 
-const OrderStatusChip = ({ status }) => {
-  const color = status?.toLowerCase?.() === 'delivered' ? 'success' : (status?.toLowerCase?.() === 'cancelled' ? 'error' : 'warning');
-  return <Chip label={status || 'Unknown'} color={color} size="small" />;
+const STATUS_FLOW = ['pending', 'processing', 'shipped', 'in transit', 'delivered'];
+const normalizeStatus = (s) => {
+  if (!s) return 'pending';
+  const v = String(s).trim().toLowerCase();
+  if (v === 'in transist' || v === 'in-transit' || v === 'in_transit' || v === 'transit') return 'in transit';
+  return v;
 };
+const statusColor = (s) => {
+  const v = normalizeStatus(s);
+  if (v === 'delivered') return 'success';
+  if (v === 'cancelled') return 'error';
+  if (v === 'shipped' || v === 'in transit') return 'info';
+  if (v === 'processing') return 'warning';
+  return 'default';
+};
+const OrderStatusChip = ({ status }) => (
+  <Chip label={(status || 'Unknown').toString()} color={statusColor(status)} size="small" />
+);
 
 const MyOrdersPage = () => {
   const { user } = useContext(AuthContext) || {};
@@ -35,6 +50,58 @@ const MyOrdersPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [savingCancel, setSavingCancel] = useState(false);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMsg, setSnackMsg] = useState('');
+  const [snackSeverity, setSnackSeverity] = useState('success');
+
+  // Update both top-level orders and user subcollection orders
+  const updateOrderEverywhere = async (order, updates) => {
+    const tasks = [];
+    // Always update the selected ref first if available
+    if (order?.ref) tasks.push(updateDoc(order.ref, updates));
+
+    const orderId = order?.orderId || order?.id;
+    if (!orderId) {
+      await Promise.allSettled(tasks);
+      return;
+    }
+
+    try {
+      // Top-level orders by orderId or id
+      const topCol = collection(db, 'orders');
+      const qTop = query(topCol, where('orderId', '==', orderId));
+      const snapTop = await getDocs(qTop);
+      if (!snapTop.empty) {
+        snapTop.forEach(d => tasks.push(updateDoc(d.ref, updates)));
+      } else {
+        // Fallback: try by doc id match
+        const qTopById = query(topCol, where('__name__', '==', order.id));
+        const snapTopById = await getDocs(qTopById);
+        snapTopById.forEach(d => tasks.push(updateDoc(d.ref, updates)));
+      }
+    } catch (_) { /* ignore */ }
+
+    try {
+      if (user?.uid) {
+        // User subcollection by orderId or id
+        const userCol = collection(db, 'users', user.uid, 'orders');
+        const qUser = query(userCol, where('orderId', '==', orderId));
+        const snapUser = await getDocs(qUser);
+        if (!snapUser.empty) {
+          snapUser.forEach(d => tasks.push(updateDoc(d.ref, updates)));
+        } else {
+          const qUserById = query(userCol, where('__name__', '==', order.id));
+          const snapUserById = await getDocs(qUserById);
+          snapUserById.forEach(d => tasks.push(updateDoc(d.ref, updates)));
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    await Promise.allSettled(tasks);
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -51,7 +118,7 @@ const MyOrdersPage = () => {
           const col = collection(db, 'users', user.uid, 'orders');
           const snap = await getDocs(query(col, orderBy('createdAt', 'desc')));
           console.debug('[Orders] found in users/{uid}/orders:', snap.size);
-          snap.docs.forEach(d => results.push({ id: d.id, ...d.data() }));
+          snap.docs.forEach(d => results.push({ id: d.id, ref: d.ref, ...d.data() }));
         } catch (e) {
           console.debug('[Orders] users/{uid}/orders query failed', e?.message || e);
         }
@@ -66,7 +133,7 @@ const MyOrdersPage = () => {
               const q = query(col, where('userProfile.uid', '==', user.uid), orderBy('createdAt', 'desc'));
               const snap = await getDocs(q);
               console.debug('[Orders] query userProfile.uid ->', snap.size);
-              snap.docs.forEach(d => results.push({ id: d.id, ...d.data() }));
+              snap.docs.forEach(d => results.push({ id: d.id, ref: d.ref, ...d.data() }));
             } catch (e) { console.debug('[Orders] query userProfile.uid failed', e?.message || e); }
           });
           // try by phone number
@@ -75,7 +142,7 @@ const MyOrdersPage = () => {
               const q = query(col, where('userProfile.number', '==', user.phoneNumber), orderBy('createdAt', 'desc'));
               const snap = await getDocs(q);
               console.debug('[Orders] query userProfile.number ->', snap.size);
-              snap.docs.forEach(d => results.push({ id: d.id, ...d.data() }));
+              snap.docs.forEach(d => results.push({ id: d.id, ref: d.ref, ...d.data() }));
             } catch (e) { console.debug('[Orders] query userProfile.number failed', e?.message || e); }
           });
           // try by email
@@ -84,7 +151,7 @@ const MyOrdersPage = () => {
               const q = query(col, where('userProfile.email', '==', user.email), orderBy('createdAt', 'desc'));
               const snap = await getDocs(q);
               console.debug('[Orders] query userProfile.email ->', snap.size);
-              snap.docs.forEach(d => results.push({ id: d.id, ...d.data() }));
+              snap.docs.forEach(d => results.push({ id: d.id, ref: d.ref, ...d.data() }));
             } catch (e) { console.debug('[Orders] query userProfile.email failed', e?.message || e); }
           });
 
@@ -107,14 +174,14 @@ const MyOrdersPage = () => {
           return tb - ta;
         });
 
-            console.debug('[Orders] final count:', dedup.length, 'ids:', dedup.map(d => d.id));
-            setOrders(dedup);
-            // if navigated with a highlight id, open that order after load
-            const highlightId = location.state?.highlightOrderId;
-            if (highlightId) {
-              const found = dedup.find(o => o.id === highlightId || o.orderId === highlightId);
-              if (found) setSelected(found);
-            }
+        console.debug('[Orders] final count:', dedup.length, 'ids:', dedup.map(d => d.id));
+        setOrders(dedup);
+        // if navigated with a highlight id, open that order after load
+        const highlightId = location.state?.highlightOrderId;
+        if (highlightId) {
+          const found = dedup.find(o => o.id === highlightId || o.orderId === highlightId);
+          if (found) setSelected(found);
+        }
       } catch (err) {
         console.error('Failed to load orders', err);
         setError('Failed to load orders.');
@@ -158,7 +225,7 @@ const MyOrdersPage = () => {
         <Grid container spacing={2}>
           {orders.map(order => (
             <Grid item xs={12} sm={6} key={order.id}>
-              <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+              <Card sx={{ borderRadius: 2, boxShadow: 3, border: '1px solid rgba(0,0,0,0.06)' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                     <Box>
@@ -169,8 +236,8 @@ const MyOrdersPage = () => {
                   </Box>
 
                   <Box mb={1}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{order.items?.length ? `${order.items.length} item(s)` : `Total: ₹${order.total ?? order.amount ?? 0}`}</Typography>
-                    <Typography variant="body2" color="text.secondary">Payment: {order.paymentMethod || order.payment?.method || 'N/A'}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(order.items || order.cartItems || []).length ? `${(order.items || order.cartItems).length} item(s)` : `Total: ₹${order.total ?? order.amount ?? 0}`}</Typography>
+                    <Typography variant="body2" color="text.secondary">Payment: {order.paymentMethod || order.payment?.method || 'N/A'} {order.paymentStatus ? `• ${order.paymentStatus}` : ''}</Typography>
                   </Box>
 
                   <Box display="flex" gap={1} justifyContent="flex-end">
@@ -223,10 +290,100 @@ const MyOrdersPage = () => {
                   <Typography variant="body2" color="text.secondary">{selected.userProfile.address || (selected.address && selected.address.street)}</Typography>
                 </>
               )}
+
+              {(() => {
+                const s = normalizeStatus(selected.status);
+                const canCancel = s === 'pending' || s === 'processing';
+                if (!canCancel) return null;
+                return (
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Tooltip title="You can cancel before the order is shipped.">
+                      <Button color="error" variant="outlined" size="small" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
+                        Cancel Order
+                      </Button>
+                    </Tooltip>
+                  </Box>
+                );
+              })()}
+
             </Box>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Dialog */}
+      <Dialog open={cancelOpen} onClose={() => !savingCancel && setCancelOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 700 }}>Cancel Order</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Please tell us why you are cancelling. This helps us improve.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={3}
+            placeholder="Reason for cancellation"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={savingCancel} onClick={() => setCancelOpen(false)}>Close</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={savingCancel || !selected || !(normalizeStatus(selected.status) === 'pending' || normalizeStatus(selected.status) === 'processing')}
+            onClick={async () => {
+              setSavingCancel(true);
+              try {
+                // Double-check status eligibility
+                const s = normalizeStatus(selected.status);
+                if (!(s === 'pending' || s === 'processing')) {
+                  setSavingCancel(false);
+                  setCancelOpen(false);
+                  return;
+                }
+                const updates = {
+                  status: 'cancelled',
+                  cancelReason: cancelReason?.trim() || null,
+                  updatedAt: serverTimestamp(),
+                };
+                await updateOrderEverywhere(selected, updates);
+                // reflect locally
+                setOrders(prev => prev.map(o => (o.id === selected.id ? { ...o, status: 'cancelled', cancelReason: cancelReason?.trim() || null } : o)));
+                setSelected(prev => prev ? { ...prev, status: 'cancelled', cancelReason: cancelReason?.trim() || null } : prev);
+                // success snackbar
+                setSnackMsg('Order cancelled successfully');
+                setSnackSeverity('success');
+                setSnackOpen(true);
+              } catch (e) {
+                console.error('Cancel order failed', e);
+                setSnackMsg('Failed to cancel order. Please try again.');
+                setSnackSeverity('error');
+                setSnackOpen(true);
+              } finally {
+                setSavingCancel(false);
+                setCancelOpen(false);
+              }
+            }}
+          >
+            {savingCancel ? 'Cancelling…' : 'Confirm Cancel'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={snackOpen}
+        autoHideDuration={3000}
+        onClose={(_, reason) => { if (reason !== 'clickaway') setSnackOpen(false); }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackOpen(false)} severity={snackSeverity} sx={{ width: '100%' }}>
+          {snackMsg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

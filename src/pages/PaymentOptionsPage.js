@@ -174,7 +174,7 @@ const PaymentOptionsPage = () => {
         razorpayDetails,
         verifiedPhoneNumber, // Store the verified phone number separately for reference
         createdAt: serverTimestamp(),
-        status: paymentMethod === "COD" ? "Pending Payment" : "Placed"
+        status: "Pending"
       };
 
   const ref = await addDoc(collection(db, "orders"), orderData);
