@@ -202,68 +202,111 @@ const PaymentOptionsPage = () => {
     setLoading(false);
   };
 
-  // Razorpay payment handler
-  const handleRazorpay = async () => {
-    try {
-      setLoading(true);
-      const keyId = process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_YourRazorpayKey";
-      if (!keyId || keyId.includes('YourRazorpayKey')) {
-        setDialogMsg("Razorpay key is not configured. Please set REACT_APP_RAZORPAY_KEY_ID in your .env and reload.");
-        setDialogOpen(true);
-        setLoading(false);
-        return;
-      }
-      const options = {
-        key: keyId,
-        amount: orderSummary.total * 100, // Amount in paise
-        currency: "INR",
-        name: "Sri Amman Smart Store",
-        description: "Order Payment",
-        handler: function (response) {
-          saveOrder("Razorpay", "Paid", response);
-          setLoading(false);
-        },
-        // Ensure loading is cleared if user closes the modal without paying
-        modal: {
-          ondismiss: function () {
-            setLoading(false);
-            try { notify('Payment cancelled', 'info'); } catch (_) {}
-          },
-          escape: true,
-          confirm_close: true
-        },
-        prefill: {
-          name: userProfile?.fullName || "",
-          email: userProfile?.email || "",
-          contact: userProfile?.number || ""
-        },
-        theme: { color: "#388e3c" }
-      };
-      const rzp = new window.Razorpay(options);
-      // Handle explicit failure from gateway
-      rzp.on('payment.failed', function () {
-        setDialogMsg("Payment failed. Please try again.");
-        setDialogOpen(true);
-        setLoading(false);
+// Razorpay payment handler
+const handleRazorpay = async () => {
+  try {
+    setLoading(true);
+
+      // Load keys from environment variables
+      console.log('Environment variables:', {
+        keyId: process.env.REACT_APP_RAZORPAY_KEY_ID,
+        keySecret: process.env.RAZORPAY_KEY_SECRET ? '***' + process.env.RAZORPAY_KEY_SECRET.slice(-4) : 'Not set'
       });
-      // Handle user closing the modal without completing payment
-      rzp.on('modal.closed', function () {
-        // Stop spinner so user can choose another method
-        setLoading(false);
-      });
-      // Optional: external wallet selection should not keep loading
-      rzp.on && rzp.on('external_wallet', function () {
-        setLoading(false);
-      });
-      rzp.open();
-    } catch (e) {
-      console.error('Razorpay open/init failed:', e);
-      setDialogMsg("Unable to start payment. Please try again.");
+      
+      const keyId = process.env.REACT_APP_RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    console.log('Initializing Razorpay with Key ID:', keyId);
+
+    // Ensure Razorpay script is loaded
+    if (!window.Razorpay) {
+      throw new Error('Razorpay script not loaded. Please ensure it is included in your HTML.');
+    }
+    
+    // Validate key
+    if (!keyId || keyId.includes('YourRazorpayKey')) {
+      setDialogMsg("Razorpay key is not configured. Please set a valid key and reload.");
       setDialogOpen(true);
       setLoading(false);
+      return;
     }
-  };
 
+    // A server-side order must be created for live transactions.
+    // This is a simplified client-side example.
+    const orderData = {
+        amount: orderSummary.total * 100, // Amount in paise
+        currency: "INR",
+        // Additional server-side order creation details
+    };
+
+    console.log('Creating Razorpay order with amount:', orderData.amount);
+    
+    // NOTE: Creating an order on the client-side is insecure. The 'order_id'
+    // should be fetched from your server after a successful order creation.
+
+    const options = {
+      key: keyId, 
+      amount: orderData.amount, 
+      currency: orderData.currency, 
+      name: "Sri Amman Smart Store",
+      description: `Order Payment`,
+      image: "/logo192.png",
+      handler: function (response) {
+        console.log('Payment successful:', response);
+        // The handler is only called on success.
+        saveOrder("Razorpay", "Paid", response);
+        setLoading(false);
+      },
+      prefill: {
+        // Use userProfile for consistency and robustness
+        name: userProfile?.fullName || "",
+        email: userProfile?.email || "",
+        contact: userProfile?.number || ""
+      },
+      notes: {
+        address: "Sri Amman Smart Store"
+      },
+      theme: {
+        color: "#388e3c" // Changed to match your last theme option
+      },
+      modal: {
+        ondismiss: function() {
+          console.log('Payment modal dismissed');
+          // This will be triggered on a user-initiated dismissal.
+          setLoading(false);
+          try { notify('Payment cancelled', 'info'); } catch (e) {
+            console.error('Notification failed:', e);
+          }
+        },
+        confirm_close: true // Confirms close with the user
+      },
+      retry: {
+        enabled: true,
+        max_count: 4
+      }
+    };
+
+    const rzp = new window.Razorpay(options);
+
+    // Use a single modal.closed handler for all dismissals,
+    // including user-initiated and a `payment.failed` event will be triggered
+    // if the payment fails after the modal opens.
+    rzp.on('payment.failed', function (response) {
+      console.error('Payment failed:', response.error);
+      setDialogMsg("Payment failed. Please try again.");
+      setDialogOpen(true);
+      setLoading(false);
+    });
+
+    rzp.open();
+
+  } catch (e) {
+    console.error('Razorpay open/init failed:', e);
+    setDialogMsg("Unable to start payment. Please try again.");
+    setDialogOpen(true);
+    setLoading(false);
+  }
+};
   // Load Razorpay script if not present
   React.useEffect(() => {
     if (!window.Razorpay) {
