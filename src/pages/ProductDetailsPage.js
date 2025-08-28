@@ -15,6 +15,7 @@ import { updateDoc, where, deleteDoc } from "firebase/firestore";
 import { getOptionKey, getPrimaryOption, fetchWishlistsWithProductOptions } from '../utils/wishlistUtils';
 import ProductCard from "../components/ProductCard.js"; // Explicit extension for compatibility
 import SEO from "../components/SEO";
+import AuthRequiredPrompt from "../components/AuthRequiredPrompt";
 
 const ProductDetailsPage = () => {
   // wishlist state moved into WishlistWidget
@@ -30,6 +31,7 @@ const ProductDetailsPage = () => {
   const [otherProducts, setOtherProducts] = useState([]);
   const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { user, userDetails } = useContext(AuthContext) || {};
   // wishlist logic extracted to WishlistWidget
   // Add to Cart logic (like ProductCard)
@@ -42,12 +44,15 @@ const ProductDetailsPage = () => {
 
   const addToCartFirestore = async () => {
     if (!user) {
-      alert("Please login to add to cart.");
+      setShowAuthDialog(true);
       return;
     }
+    
     setCartLoading(true);
     try {
       const selectedOption = options[selectedOptionIdx] || options[0];
+      
+      // Helper function to extract MRP from product or option
       const extractMrp = (obj) => {
         if (!obj || typeof obj !== 'object') return null;
         if (obj.mrp != null) return obj.mrp;
@@ -55,72 +60,69 @@ const ProductDetailsPage = () => {
         const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
         return dynKey ? obj[dynKey] : null;
       };
+      
       const mrpValue = extractMrp(selectedOption) ?? extractMrp(product);
       const cartRef = collection(db, "users", user.uid, "cart");
-      console.log('[Cart] Attempting to update/add:', {
-        productId: product.id,
-        option: selectedOption,
-        quantity,
-        userId: user.uid
-      });
-      // Find existing cart item for this product and option
+      
+      // Validate required fields
       if (!selectedOption.unit || !selectedOption.unitSize) {
         alert("Product option missing unit/unitSize. Cannot add to cart.");
         setCartLoading(false);
         return;
       }
+      
+      // Create a unique identifier for this product + option combination
+      const cartItemId = `${product.id}_${selectedOption.unit}_${selectedOption.unitSize}`;
+      
+      // Check if this exact product + option already exists in cart
       const q = query(
         cartRef,
         where('productId', '==', product.id),
         where('unit', '==', selectedOption.unit),
         where('unitSize', '==', selectedOption.unitSize)
       );
+      
       const cartSnap = await getDocs(q);
-      console.log('[Cart] Query result:', cartSnap.docs.map(d => ({ docId: d.id, data: d.data() })));
+      
       if (!cartSnap.empty) {
-        // Update existing cart item
+        // Update existing cart item with new quantity
         const cartDoc = cartSnap.docs[0];
-        console.log('[Cart] Updating existing cart doc:', cartDoc.id, cartDoc.data());
         await updateDoc(cartDoc.ref, { 
-          quantity, 
+          quantity: quantity, 
           addedAt: new Date().toISOString(),
-          // persist pricing fields for checkout strikeout logic
           mrp: mrpValue,
           sellingPrice: selectedOption.sellingPrice ?? product.sellingPrice ?? null,
           price: selectedOption.sellingPrice ?? product.sellingPrice ?? null
         });
-        console.log('[Cart] Updated doc:', cartDoc.id, 'with quantity:', quantity);
+        console.log('Updated existing cart item with new quantity');
       } else {
-        // Add new cart item
-        // Remove any 'id' field from product before adding to cart
-        const { id, ...productWithoutId } = product;
-        console.log('[Cart] Adding new cart item:', {
+        // Add as new cart item
+        const { id: _, ...productWithoutId } = product;
+        const cartItem = {
           productId: product.id,
           ...productWithoutId,
           ...selectedOption,
-          quantity,
+          quantity: quantity,
           addedAt: new Date().toISOString(),
-        });
-        const addedDoc = await addDoc(cartRef, {
-          productId: product.id,
-          ...productWithoutId,
-          ...selectedOption,
-          quantity,
-          addedAt: new Date().toISOString(),
-          // Explicit pricing fields for downstream components
           mrp: mrpValue,
           sellingPrice: selectedOption.sellingPrice ?? product.sellingPrice ?? null,
-          price: selectedOption.sellingPrice ?? product.sellingPrice ?? null
-        });
-        console.log('[Cart] Added new doc with ID:', addedDoc.id);
+          price: selectedOption.sellingPrice ?? product.sellingPrice ?? null,
+          cartItemId: cartItemId
+        };
+        
+        await addDoc(cartRef, cartItem);
+        console.log('Added new cart item with unique option');
       }
+      
       setCartAdded(true);
       setInCart(true);
       setTimeout(() => setCartAdded(false), 1500);
     } catch (err) {
-      alert("Failed to add to cart.");
+      console.error('Error adding to cart:', err);
+      alert("Failed to add to cart. Please try again.");
+    } finally {
+      setCartLoading(false);
     }
-    setCartLoading(false);
   };
 
   // wishlist logic replaced by WishlistWidget
@@ -188,13 +190,14 @@ const ProductDetailsPage = () => {
     mrp: product?.mrp,
     sellingPrice: product?.sellingPrice,
     specialPrice: product?.specialPrice,
-    unit: product?.unit,
-    unitSize: product?.unitSize,
-    quantity: product?.quantity
+    unit: product?.unit || 'piece',
+    unitSize: product?.unitSize || '1',
+    quantity: product?.quantity || 1
   }];
+  
   const selectedOption = options[selectedOptionIdx] || options[0];
   const discount = getDiscount(selectedOption.mrp, selectedOption.sellingPrice);
-  const avgRating = reviews.length ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : null;
+  const avgRating = reviews.length ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : 0;
   const [cartLoading, setCartLoading] = useState(false);
   const [cartAdded, setCartAdded] = useState(false);
   const [inCart, setInCart] = useState(false);
@@ -227,34 +230,63 @@ const ProductDetailsPage = () => {
   }, [user, product, selectedOptionIdx]);
 
   // Guard: product undefined => still loading; product === null => not found
-  if (product === undefined) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading...</Typography>;
-  if (product === null) return <Typography sx={{ mt: 2, textAlign: 'center' }}>Product not found.</Typography>;
+  if (!product) {
+    return <div>Loading...</div>;
+  }
+
+  // SEO data
+  const seoData = {
+    title: product.name || 'Product Details',
+    description: product.description || '',
+    structuredData: {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      image: product?.imageUrls?.[0] || '',
+      description: product.description || '',
+      sku: product.id,
+      brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "INR",
+        price: selectedOption?.sellingPrice ?? product?.sellingPrice ?? '0',
+        availability: product?.outOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+        url: typeof window !== 'undefined' ? window.location.href : '',
+      },
+    },
+  };
+
+  // Add aggregate rating if we have reviews
+  if (reviews.length > 0) {
+    seoData.structuredData.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: avgRating,
+      reviewCount: reviews.length
+    };
+  }
 
   return (
-    <Box className="product-details-root" sx={{ maxWidth: { xs: '100%', sm: 700 }, mx: "auto", mt: 0, p: { xs: 0.5, sm: 2 }, boxShadow: 3, borderRadius: { xs: 0, sm: 3 }, bgcolor: "#fff" }}>
-      <SEO
-        title={`${product.name}`}
-        description={product.description || `${product.name} at the best price. Fast delivery in Coimbatore.`}
-        image={product?.imageUrls?.[0]}
-        type="product"
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.name,
-          image: product?.imageUrls || [],
-          description: product.description || '',
-          sku: product.id,
-          brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-          aggregateRating: avgRating ? { "@type": "AggregateRating", ratingValue: Number(avgRating), reviewCount: reviews.length } : undefined,
-          offers: {
-            "@type": "Offer",
-            priceCurrency: "INR",
-            price: selectedOption?.sellingPrice ?? product?.sellingPrice ?? '',
-            availability: product?.outOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
-            url: typeof window !== 'undefined' ? window.location.href : '',
-          },
-        }}
+    <Box>
+      <SEO 
+        title={seoData.title}
+        description={seoData.description}
+        structuredData={seoData.structuredData}
       />
+      
+      {/* Auth Required Dialog */}
+      <AuthRequiredPrompt 
+        open={showAuthDialog} 
+        onClose={() => setShowAuthDialog(false)} 
+      />
+      
+      {/* Back button */}
+      <Button 
+        startIcon={<ArrowBackIcon />} 
+        onClick={() => navigate(-1)}
+        sx={{ mb: 2, ml: 2, mt: 2 }}
+      >
+        Back to Products
+      </Button>
       <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: { xs: 0, sm: 3 } }}>
         {/* Image gallery */}
         <Box sx={{ position: 'relative', width: { xs: '100%', md: 300 }, minHeight: { xs: 220, sm: 300 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: 'inherit' }, p: { xs: 1, sm: 0 } }}>

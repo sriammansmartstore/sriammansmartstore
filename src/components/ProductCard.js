@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Card,
   CardMedia,
@@ -17,12 +18,11 @@ import WishlistWidget from './WishlistWidget';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
-import { Link, useNavigate } from "react-router-dom";
 import { db } from "../firebase";
-import { doc, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
-import { updateDoc } from "firebase/firestore";
-import { query, where } from "firebase/firestore";
+import { getDiscount } from "../utils/productUtils";
+import { updateDoc, query, where, collection, getDocs, addDoc } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
+import AuthRequiredPrompt from './AuthRequiredPrompt';
 import "./../pages/HomePage.css"; // Ensure the CSS is applied
 
 // Helper to get the middle option (or first if only one)
@@ -30,11 +30,6 @@ const getMiddleOption = (options) => {
   if (!Array.isArray(options) || options.length === 0) return null;
   const idx = Math.floor(options.length / 2);
   return options[idx];
-};
-
-const getDiscount = (mrp, sellingPrice) => {
-  if (!mrp || !sellingPrice || mrp <= sellingPrice) return 0;
-  return Math.round(((mrp - sellingPrice) / mrp) * 100);
 };
 
 const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
@@ -57,17 +52,20 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const [currentVariantQty, setCurrentVariantQty] = useState(0);
 
   // wishlist fetching moved into WishlistWidget
-
   const [showOptionsDialog, setShowOptionsDialog] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [addQuantity, setAddQuantity] = useState(1);
 
   const handleAddToCartClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // If user is not logged in, show auth dialog
     if (!user) {
-      alert("Please login to add to cart.");
+      setShowAuthDialog(true);
       return;
     }
+    
     if (hasMultipleOptions) {
       setShowOptionsDialog(true);
       return;
@@ -76,64 +74,72 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   };
 
   const updateCartQuantity = async (newQuantity) => {
-    // Queue updates, only process the latest
-    if (updatingQuantity) {
+    if (!user || updatingQuantity) {
       pendingQuantityRef.current = newQuantity;
       return;
     }
     setUpdatingQuantity(true);
-    let latestQuantity = newQuantity;
+    const latestQuantity = Math.max(1, newQuantity);
+    const optionToAdd = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
+    
+    // Skip if no valid option
+    if (!optionToAdd.unit || !optionToAdd.unitSize) {
+      alert("Product option missing unit/unitSize. Cannot update cart.");
+      setUpdatingQuantity(false);
+      return;
+    }
+
     try {
-      const optionToAdd = product.options?.[selectedOptionIdx] || product.options?.[0] || {};
-      const extractMrp = (obj) => {
-        if (!obj || typeof obj !== 'object') return null;
-        if (obj.mrp != null) return obj.mrp;
-        if (obj.mrp12 != null) return obj.mrp12;
-        const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
-        return dynKey ? obj[dynKey] : null;
-      };
-      const mrpValue = extractMrp(optionToAdd) ?? extractMrp(product);
-      const cartRef = collection(db, "users", user.uid, "cart");
-      // Find existing cart item for this product and option
+      const cartRef = collection(db, 'users', user.uid, 'cart');
       const q = query(
         cartRef,
         where('productId', '==', product.id),
         where('unit', '==', optionToAdd.unit),
         where('unitSize', '==', optionToAdd.unitSize)
       );
+      
       const cartSnap = await getDocs(q);
+      
+      // Always create a new cart item with a unique ID
+      const { id: _, ...productWithoutId } = product;
+      const cartItem = {
+        productId: product.id,
+        ...productWithoutId,
+        ...optionToAdd,
+        quantity: latestQuantity,
+        addedAt: new Date().toISOString(),
+        mrp: optionToAdd.mrp,
+        sellingPrice: optionToAdd.sellingPrice ?? product.sellingPrice ?? null,
+        price: optionToAdd.sellingPrice ?? product.sellingPrice ?? null,
+        // Add a unique identifier for this specific product + option combination
+        cartItemId: `${product.id}_${optionToAdd.unit}_${optionToAdd.unitSize}`
+      };
+
       if (!cartSnap.empty) {
+        // Update existing cart item with the same product + option
         const cartDoc = cartSnap.docs[0];
         await updateDoc(cartDoc.ref, { 
-          quantity: latestQuantity, 
-          addedAt: new Date().toISOString(),
-          // Ensure pricing fields are persisted/updated
-          mrp: mrpValue,
-          sellingPrice: optionToAdd.sellingPrice ?? product.sellingPrice ?? null,
-          price: optionToAdd.sellingPrice ?? product.sellingPrice ?? null
-        });
-      } else {
-        const { id, ...productWithoutId } = product;
-        await addDoc(cartRef, {
-          productId: product.id,
-          ...productWithoutId,
-          ...optionToAdd,
           quantity: latestQuantity,
           addedAt: new Date().toISOString(),
-          // Explicitly store pricing for checkout computations
-          mrp: mrpValue,
+          mrp: optionToAdd.mrp,
           sellingPrice: optionToAdd.sellingPrice ?? product.sellingPrice ?? null,
           price: optionToAdd.sellingPrice ?? product.sellingPrice ?? null
         });
+        console.log('Updated existing cart item with new quantity');
+      } else {
+        // Add as new cart item
+        await addDoc(cartRef, cartItem);
+        console.log('Added new cart item with unique option');
       }
 
       setAddQuantity(latestQuantity);
       if (onAddToCart) onAddToCart(product, latestQuantity);
     } catch (err) {
-      alert("Failed to update cart quantity.");
+      console.error('Error updating cart:', err);
+      alert("Failed to update cart. Please try again.");
     } finally {
       setUpdatingQuantity(false);
-      // If another update was queued, process it
+      // Process any queued updates
       if (pendingQuantityRef.current !== null && pendingQuantityRef.current !== latestQuantity) {
         const nextQty = pendingQuantityRef.current;
         pendingQuantityRef.current = null;
@@ -247,12 +253,54 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
         </Box>
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
           <CardContent sx={{ p: 1, pb: 0, flex: 1, paddingBottom: '0 !important' }}>
-            <Box className="scrolling-text-container">
+            <Box 
+              sx={{
+                overflow: 'hidden',
+                width: '100%',
+                position: 'relative',
+                textAlign: 'center',
+                '&:hover .product-name': {
+                  textOverflow: product.name.length > 12 ? 'clip' : 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  animation: product.name.length > 12 ? 'scrollText 8s linear infinite' : 'none',
+                },
+                '@keyframes scrollText': {
+                  '0%': { transform: 'translateX(0)' },
+                  '10%': { transform: 'translateX(0)' },
+                  '40%': { transform: 'translateX(calc(-100% + 180px))' },
+                  '60%': { transform: 'translateX(calc(-100% + 180px))' },
+                  '90%': { transform: 'translateX(0)' },
+                  '100%': { transform: 'translateX(0)' },
+                }
+              }}
+            >
               <Typography
-                className="scrolling-text"
+                className="product-name"
                 variant="subtitle1"
                 fontWeight={700}
-                sx={{ fontSize: '1rem', mb: 0.5, lineHeight: 1.1 }}
+                sx={{ 
+                  fontSize: '1rem',
+                  mb: 0.5,
+                  lineHeight: 1.1,
+                  display: 'inline-block',
+                  width: '100%',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'center',
+                  '&:hover': {
+                    position: 'relative',
+                    zIndex: 1,
+                    backgroundColor: 'background.paper',
+                    boxShadow: product.name.length > 12 ? 3 : 'none',
+                    padding: product.name.length > 12 ? '0 8px' : 0,
+                    margin: product.name.length > 12 ? '0 -8px' : 0,
+                    borderRadius: 1,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    maxWidth: 'calc(100% + 16px)'
+                  }
+                }}
               >
                 {product.name}
               </Typography>
@@ -430,7 +478,12 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           <Button onClick={() => setShowOptionsDialog(false)} color="inherit" sx={{ borderRadius: 2 }}>Cancel</Button>
         </DialogActions>
       </Dialog>
-      </Box>
+      {/* Auth Required Dialog */}
+      <AuthRequiredPrompt 
+        open={showAuthDialog} 
+        onClose={() => setShowAuthDialog(false)} 
+      />
+    </Box>
 
   {/* wishlist UI moved to WishlistWidget */}
     </Card>

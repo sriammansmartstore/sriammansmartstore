@@ -25,12 +25,16 @@ export const calculateOrderSummary = (items = []) => {
     const quantity = item.quantity || item.qty || 1;
 
     return {
+      id: item.id, // Preserve the Firestore document ID
+      cartItemId: item.cartItemId, // Preserve the cart item ID
       name: item.name,
       qty: quantity,
       price: price,
       unit: selectedOption.unit || item.unit || "",
       unitSize: selectedOption.unitSize || item.unitSize || "",
-      // Provide option context so the summary can resolve MRP correctly
+      // Include all original item properties
+      ...item,
+      // Override with calculated values
       option: selectedOption,
       options: Array.isArray(item.options) ? item.options : [],
       imageUrl:

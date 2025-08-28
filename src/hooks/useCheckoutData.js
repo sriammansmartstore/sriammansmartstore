@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState, useCallback } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { db } from "../firebase";
 import { collection, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
@@ -15,6 +15,50 @@ export const useCheckoutData = (setInitiallySelectedAddress) => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Function to fetch cart data
+  const fetchCartData = useCallback(async () => {
+    if (!user) return [];
+    
+    try {
+      const cartColRef = collection(db, "users", user.uid, "cart");
+      const cartSnap = await getDocs(cartColRef);
+      const items = cartSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      console.log('Fetched cart items:', items);
+      return items;
+    } catch (err) {
+      console.error("Error fetching cart data:", err);
+      setError("Failed to load your cart. Please try again later.");
+      return [];
+    }
+  }, [user]);
+
+  // Function to refresh all data
+  const refreshData = useCallback(async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      // Refresh user profile
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        setUserProfile(userDocSnap.data());
+      }
+      
+      // Refresh cart items
+      const updatedCartItems = await fetchCartData();
+      setCartItems(updatedCartItems);
+      
+      // Addresses are handled by the real-time listener
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+      setError("Failed to refresh data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, fetchCartData]);
 
   useEffect(() => {
     if (!user) {
@@ -37,10 +81,9 @@ export const useCheckoutData = (setInitiallySelectedAddress) => {
           setUserProfile(userDocSnap.data());
         }
 
-        // Fetch cart items (one-time)
-        const cartColRef = collection(db, "users", user.uid, "cart");
-        const cartSnap = await getDocs(cartColRef);
-        setCartItems(cartSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
+        // Fetch cart items
+        const updatedCartItems = await fetchCartData();
+        setCartItems(updatedCartItems);
       } catch (err) {
         console.error("Error fetching checkout data:", err);
         setError("Failed to load your checkout details. Please try again later.");
@@ -51,7 +94,7 @@ export const useCheckoutData = (setInitiallySelectedAddress) => {
 
     fetchData();
 
-    // Set up real-time listener for addresses
+      // Set up real-time listener for addresses
     const addressesColRef = collection(db, "users", user.uid, "addresses");
     const unsubscribeAddresses = onSnapshot(
       addressesColRef,
@@ -72,9 +115,29 @@ export const useCheckoutData = (setInitiallySelectedAddress) => {
       }
     );
 
-    // Cleanup listener on component unmount
-    return () => unsubscribeAddresses();
-  }, [user, setInitiallySelectedAddress]);
+    // Set up real-time listener for cart changes
+    const cartColRef = collection(db, "users", user.uid, "cart");
+    const unsubscribeCart = onSnapshot(
+      cartColRef,
+      (snapshot) => {
+        const updatedCartItems = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        }));
+        setCartItems(updatedCartItems);
+      },
+      (err) => {
+        console.error("Error listening to cart:", err);
+        setError("Failed to update cart items.");
+      }
+    );
 
-  return { userProfile, addresses, cartItems, loading, error };
+    // Cleanup listeners on component unmount
+    return () => {
+      unsubscribeAddresses();
+      unsubscribeCart();
+    };
+  }, [user, setInitiallySelectedAddress, fetchCartData, refreshTrigger]);
+
+  return { userProfile, addresses, cartItems, loading, error, refreshData };
 };

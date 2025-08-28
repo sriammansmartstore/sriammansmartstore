@@ -27,6 +27,7 @@ import WishlistDetailPage from "./pages/WishlistDetailPage";
 import WishlistReviewPage from "./pages/WishlistReviewPage";
 import OfferScroller from "./components/OfferScroller";
 
+
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ProductDetailsPage = lazy(() => import("./pages/ProductDetailsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
@@ -34,7 +35,6 @@ const CartPage = lazy(() => import("./pages/CartPage"));
 const WishlistPage = lazy(() => import("./pages/WishlistPage"));
 const AddressesPage = lazy(() => import("./pages/AddressesPage"));
 const UserSettingsPage = lazy(() => import("./pages/UserSettingsPage"));
-const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const PaymentOptionsPage = lazy(() => import("./pages/PaymentOptionsPage"));
 const MyOrdersPage = lazy(() => import("./pages/MyOrdersPage"));
 const LocationDetectionPage = lazy(() => import("./pages/LocationDetectionPage"));
@@ -213,7 +213,7 @@ function App() {
                         <Route path="/wishlist/:wishlistId/review" element={<WishlistReviewPage />} />
                         <Route path="/addresses" element={<AddressesPage />} />
                         <Route path="/settings" element={<UserSettingsPage />} />
-                        <Route path="/checkout" element={<CheckoutPage />} />
+                        {/* Checkout flow now goes directly from cart to payment */}
                         <Route path="/payment" element={<PaymentOptionsPage />} />
                         <Route path="/orders" element={<MyOrdersPage />} />
                         <Route path="/location" element={<LocationDetectionPage />} />
@@ -229,6 +229,8 @@ function App() {
                         <Route path="/refund-cancellation" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/RefundAndCancellationPolicyPage')))}</Suspense>} />
                         <Route path="/shipping" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/ShippingPolicyPage')))}</Suspense>} />
                         <Route path="/return" element={<Suspense fallback={null}>{React.createElement(lazy(() => import('./pages/ReturnPolicyPage')))}</Suspense>} />
+                        {/* Checkout flow now goes directly from cart to payment */}
+                        <Route path="/cart" element={<CartPage />} />
                         <Route path="*" element={<Navigate to="/" />} />
                       </Routes>
                     </Suspense>

@@ -1,443 +1,184 @@
-import React, { useContext, useEffect, useState } from "react";
-import { 
-  Box, 
-  Typography, 
-  Button, 
-  IconButton, 
-  CircularProgress, 
-  Card, 
-  CardContent, 
-  Alert,
-  Chip,
-  Stack
-} from "@mui/material";
-import { 
-  Add as AddIcon, 
-  Remove as RemoveIcon, 
-  Delete as DeleteIcon,
-  ShoppingCart as ShoppingCartIcon
-} from "@mui/icons-material";
+import React, { useContext, useState, useMemo, useCallback } from "react";
+import { Box, Typography, Button, CircularProgress, Alert, Container } from "@mui/material";
+import { useNotification } from '../components/NotificationProvider';
 import { AuthContext } from "../context/AuthContext";
-import { db } from "../firebase";
-import { collection, onSnapshot, doc, deleteDoc, updateDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+
+// Component and Hook Imports
+import OrderSummaryCard from "../checkout/components/OrderSummaryCard";
+import DeliveryAddressCard from "../checkout/components/DeliveryAddressCard";
+import { useCheckoutData } from "../hooks/useCheckoutData";
+import { calculateOrderSummary } from "../utils/orderUtils";
 
 const CartPage = () => {
   const { user } = useContext(AuthContext);
+  const { notify } = useNotification() || { notify: () => {} };
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [cartVersion, setCartVersion] = useState(0); // Used to force re-render on cart updates
   const navigate = useNavigate();
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [hasFetched, setHasFetched] = useState(false);
-  const [showEmpty, setShowEmpty] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const location = useLocation();
 
-  // Subscribe to cart changes in real time to avoid stale or empty flashes
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    const cartRef = collection(db, "users", user.uid, "cart");
-    const q = query(cartRef, orderBy("addedAt", "desc"));
+  const { userProfile, addresses, cartItems, loading, error, refreshData } = useCheckoutData(setSelectedAddressId);
 
-    const extractMrp = (obj) => {
-      if (!obj || typeof obj !== 'object') return undefined;
-      if (obj.mrp != null) return obj.mrp;
-      if (obj.mrp12 != null) return obj.mrp12;
-      const dynKey = Object.keys(obj).find(k => /^mrp\d+$/i.test(k));
-      return dynKey ? obj[dynKey] : undefined;
-    };
+  const itemsToProcess = useMemo(() =>
+    location.state?.source === "wishlist" ? location.state.items : cartItems,
+    [location.state, cartItems, cartVersion]
+  );
+  
+  const orderSummary = useMemo(() => {
+    console.log('Cart items in CartPage:', itemsToProcess);
+    return calculateOrderSummary(itemsToProcess);
+  }, [itemsToProcess]);
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      try {
-        const items = snapshot.docs.map(d => {
-          const data = d.data();
-          const unit = data.option?.unit || data.unit;
-          const unitSize = data.option?.unitSize || data.unitSize;
-          const matchedOption = Array.isArray(data.options)
-            ? data.options.find(o => o && o.unit === unit && o.unitSize === unitSize)
-            : undefined;
-          const normalizedMrp = extractMrp(matchedOption)
-            ?? extractMrp(data.option)
-            ?? extractMrp(data)
-            ?? extractMrp(data.options?.[0]);
-          return {
-            id: d.id,
-            ...data,
-            quantity: data.quantity || 1,
-            sellingPrice: data.option?.sellingPrice || data.sellingPrice || data.price,
-            mrp: normalizedMrp,
-            unitSize: data.option?.unitSize || data.unitSize,
-            unit: data.option?.unit || data.unit
-          };
-        });
-        setCartItems(items);
-      } finally {
-        setLoading(false);
-        setHasFetched(true);
-      }
-    }, (err) => {
-      console.error('Error subscribing to cart:', err);
-      setCartItems([]);
-      setLoading(false);
-      setHasFetched(true);
-    });
+  const selectedAddressObject = useMemo(
+    () => addresses.find((a) => a.id === selectedAddressId),
+    [addresses, selectedAddressId]
+  );
 
-    return () => unsub();
-  }, [user]);
-
-  // Debounce empty-state display to prevent brief flashes
-  useEffect(() => {
-    if (!hasFetched) {
-      setShowEmpty(false);
+  const handleProceedToPayment = useCallback(() => {
+    if (!selectedAddressId) {
+      notify('Please select a delivery address to continue', 'warning');
       return;
     }
-    const timer = setTimeout(() => {
-      setShowEmpty(cartItems.length === 0);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [hasFetched, cartItems.length]);
+    navigate("/payment", {
+      state: {
+        orderSummary,
+        selectedAddress: selectedAddressObject,
+        userProfile,
+        cartItems: itemsToProcess,
+      },
+    });
+  }, [selectedAddressId, orderSummary, selectedAddressObject, userProfile, itemsToProcess, navigate, notify]);
 
+  const handleCartUpdate = useCallback(() => {
+    // Force a refresh of cart data
+    setCartVersion(prev => prev + 1);
+    refreshData();
+  }, [refreshData]);
 
-  const handleDelete = async (id) => {
-    if (!user) return;
-    
-    setUpdating(true);
-    try {
-      const docRef = doc(db, "users", user.uid, "cart", id);
-      await deleteDoc(docRef);
-    } catch (err) {
-      console.error('Error deleting item from cart:', err);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleQuantityChange = async (id, newQty) => {
-    if (!user || newQty < 0) return;
-    
-    setUpdating(true);
-    try {
-      const item = cartItems.find(item => item.id === id);
-      if (!item) return;
-      
-      const itemRef = doc(db, "users", user.uid, "cart", id);
-      
-      if (newQty === 0) {
-        await deleteDoc(itemRef);
-      } else {
-        await updateDoc(itemRef, { 
-          quantity: newQty,
-          lastUpdated: serverTimestamp()
-        });
-        setCartItems(items => items.map(i => i.id === id ? { ...i, quantity: newQty } : i));
-      }
-    } catch (error) {
-      console.error("Error updating cart quantity:", error);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const total = cartItems.reduce((sum, item) => sum + (item.sellingPrice || item.price) * (item.quantity || item.qty), 0);
-  
-  // While AuthContext is initializing, avoid showing empty/login flicker
-  if (user === undefined) {
+  if (loading) {
     return (
-      <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
-        </Box>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
       </Box>
     );
   }
 
-  if (!user) {
+  if (error) {
     return (
-      <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
-        <Box display="flex" alignItems="center" mb={3}>
-          <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Your Cart</Typography>
-        </Box>
-        <Card sx={{ borderRadius: 2, boxShadow: 2, textAlign: 'center', py: 4 }}>
-          <CardContent>
-            <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Sign in to view your cart</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Please log in to access your saved items and continue shopping.
-            </Typography>
-            <Button 
-              variant="contained" 
-              onClick={() => navigate('/login')}
-              sx={{ fontWeight: 600, borderRadius: 2, px: 4, py: 1.5 }}
-            >
-              Sign In
-            </Button>
-          </CardContent>
-        </Card>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">{error}</Alert>
       </Box>
     );
   }
+
+  if (orderSummary.items.length === 0) {
+    return (
+      <Container maxWidth="md" sx={{ py: 8, textAlign: 'center' }}>
+        <Typography variant="h5" gutterBottom>
+          Your cart is empty
+        </Typography>
+        <Typography color="text.secondary" paragraph>
+          Looks like you haven't added anything to your cart yet.
+        </Typography>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={() => navigate('/')}
+          endIcon={<ArrowForwardIcon />}
+        >
+          Continue Shopping
+        </Button>
+      </Container>
+    );
+  }
+
   return (
-    // Single-column, mobile-first layout similar to CheckoutPage
+    // Single-column, mobile-first layout: components stacked vertically
     <Box sx={{
       bgcolor: 'grey.50',
       minHeight: '100vh',
       px: { xs: 2, sm: 3, md: 4 },
       py: { xs: 2, sm: 3 },
     }}>
-      {/* Header */}
       <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>Your Cart</Typography>
-        {cartItems.length > 0 && (
-          <Chip 
-            label={`${cartItems.length} item${cartItems.length > 1 ? 's' : ''}`} 
-            color="primary" 
-            size="small" 
-          />
-        )}
-      </Box>
-
-      {loading ? (
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
+        {/* Header with item count on the right */}
+        <Box sx={{ 
+          mb: 3, 
+          display: 'flex', 
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          pt: 2,
+          px: { xs: 0, sm: 2 }
+        }}>
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+            Shopping Cart
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+            {orderSummary.items.length} {orderSummary.items.length === 1 ? 'item' : 'items'} in cart
+          </Typography>
         </Box>
-      ) : showEmpty ? (
-        <Card sx={{ borderRadius: 2, boxShadow: 2, textAlign: 'center', py: 4 }}>
-          <CardContent>
-            <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Your cart is empty</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Add some items to your cart to get started.
-            </Typography>
-            <Button 
-              variant="contained" 
-              onClick={() => navigate('/')}
-              sx={{ fontWeight: 600, borderRadius: 2, px: 4, py: 1.5 }}
-            >
-              Continue Shopping
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Stack spacing={2}>
-          {/* Cart Items - Mobile First Design */}
-          {cartItems.map((item, index) => {
-            const qty = item.quantity || item.qty || 1;
-            const pricePerUnit = item.sellingPrice || item.price;
-            const itemTotal = pricePerUnit * qty;
-            
-            return (
-              <Card 
-                key={`${item.id}-${index}`} 
-                sx={{ 
-                  borderRadius: 2, 
-                  boxShadow: 1,
-                  opacity: updating ? 0.6 : 1,
-                  transition: 'opacity 0.2s',
-                  position: 'relative'
-                }}
-              >
-                {/* Top-right delete */}
-                <IconButton
-                  size="small"
-                  aria-label="Remove item"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={updating}
-                  sx={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    color: 'error.main',
-                    bgcolor: 'rgba(255,255,255,0.9)',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-                {/* Unit price below bin icon */}
-                <Typography
-                  variant="caption"
-                  sx={{
-                    position: 'absolute',
-                    top: 44,
-                    right: 8,
-                    color: 'text.secondary',
-                    bgcolor: 'rgba(255,255,255,0.85)',
-                    px: 0.5,
-                    borderRadius: 0.5,
-                    fontWeight: 600
-                  }}
-                >
-                  ₹{pricePerUnit} per unit
-                </Typography>
-                <CardContent sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    {/* Product Image */}
-                    <Box 
-                      sx={{ 
-                        width: { xs: 52, sm: 64 }, 
-                        height: { xs: 52, sm: 64 }, 
-                        borderRadius: 2, 
-                        overflow: 'hidden',
-                        bgcolor: 'grey.50',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}
-                    >
-                      <img 
-                        src={item.imageUrls?.[0] || item.image || 'https://via.placeholder.com/80'} 
-                        alt={item.name} 
-                        style={{ 
-                          width: '100%', 
-                          height: '100%', 
-                          objectFit: 'contain' 
-                        }} 
-                      />
-                    </Box>
-                    
-                    {/* Product Details */}
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-                        <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Typography 
-                            variant="subtitle1" 
-                            sx={{ 
-                              fontWeight: 600, 
-                              mb: 0.25,
-                              fontSize: { xs: '0.9rem', sm: '0.95rem' },
-                              lineHeight: 1.3
-                            }}
-                          >
-                            {item.name}
-                          </Typography>
-                          {(item.unitSize && item.unit) && (
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary" 
-                              sx={{ mb: 0.25, fontSize: '0.8rem' }}
-                            >
-                              {item.unitSize} {item.unit.toUpperCase()}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
-                            fontWeight: 600, 
-                            color: 'primary.main',
-                            fontSize: '0.8rem',
-                            whiteSpace: 'nowrap',
-                            ml: 1
-                          }}
-                        >
-                          {/* Unit price moved below bin icon */}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Mobile Quantity Controls */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleQuantityChange(item.id, qty - 1)}
-                            disabled={updating || qty <= 1}
-                            sx={{ 
-                              border: '1px solid', 
-                              borderColor: 'divider',
-                              width: 28,
-                              height: 28
-                            }}
-                          >
-                            <RemoveIcon fontSize="small" />
-                          </IconButton>
-                          <Typography 
-                            variant="body1" 
-                            sx={{ 
-                              mx: 1.5, 
-                              minWidth: 24, 
-                              textAlign: 'center', 
-                              fontWeight: 600,
-                              fontSize: '0.95rem'
-                            }}
-                          >
-                            {qty}
-                          </Typography>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleQuantityChange(item.id, qty + 1)}
-                            disabled={updating}
-                            sx={{ 
-                              border: '1px solid', 
-                              borderColor: 'divider',
-                              width: 28,
-                              height: 28
-                            }}
-                          >
-                            <AddIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography 
-                            variant="h6" 
-                            sx={{ 
-                              fontWeight: 700, 
-                              color: 'success.main',
-                              fontSize: '1rem'
-                            }}
-                          >
-                            ₹{itemTotal}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            );
-          })}
 
-          {/* Proceed CTA only (no order summary card) */}
-          <Box sx={{ mt: 1 }}>
-            <Button
-              variant="contained"
-              fullWidth
-              size="large"
-              disabled={updating || cartItems.length === 0}
-              onClick={() => navigate('/checkout', { 
-                state: { 
-                  cartItems,
-                  orderSummary: {
-                    items: cartItems.map(item => ({
-                      ...item,
-                      qty: item.quantity || item.qty || 1,
-                      price: item.sellingPrice || item.price
-                    })),
-                    total
-                  }
-                }
-              })}
-              sx={{ 
-                fontWeight: 700,
-                borderRadius: 2, 
-                py: 1.5,
-                fontSize: '1.05rem'
-              }}
-            >
-              {updating ? <CircularProgress size={24} /> : 'Proceed to Checkout'}
-            </Button>
-          </Box>
-        </Stack>
-      )}
-      
-      {updating && (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          Updating cart...
-        </Alert>
-      )}
+        {/* Order summary with quantity selector and delete functionality */}
+        <Box sx={{ mb: { xs: 2, sm: 3 }, px: { xs: 0, sm: 2 } }}>
+          <OrderSummaryCard 
+            summary={{
+              ...orderSummary,
+              items: itemsToProcess // Ensure we're passing the full items with their IDs
+            }} 
+            onUpdateCart={handleCartUpdate}
+            showQuantityControls={true}
+            showDeleteButton={true}
+          />
+        </Box>
+
+        {/* Delivery address */}
+        <Box sx={{ mb: { xs: 2, sm: 3 }, px: { xs: 0, sm: 2 } }}>
+          <DeliveryAddressCard
+            addresses={addresses}
+            selectedAddressId={selectedAddressId}
+            onAddressChange={(e) => setSelectedAddressId(e.target.value)}
+            loading={loading}
+          />
+        </Box>
+
+        {/* Checkout button */}
+        <Box sx={{ 
+          position: 'sticky', 
+          bottom: 16,
+          px: { xs: 0, sm: 2 },
+          width: '100%',
+          zIndex: 10,
+          backgroundColor: 'transparent'
+        }}>
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleProceedToPayment}
+            disabled={!selectedAddressId || loading}
+            sx={{
+              py: 1.5,
+              px: 3,
+              borderRadius: 2,
+              fontWeight: 600,
+              textTransform: 'none',
+              fontSize: '1rem',
+              boxShadow: 3,
+            }}
+          >
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              `Proceed to Pay ${orderSummary.total.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}`
+            )}
+          </Button>
+        </Box>
       </Box>
     </Box>
   );
 };
+
 export default CartPage;
