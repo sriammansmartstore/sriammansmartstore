@@ -15,10 +15,7 @@
   background: #ccc;
   border-radius: 3px;
 }
-.product-details-root {
-  width: 100%;
-  box-sizing: border-box;
-}
+
 @media (max-width: 600px) {
   .product-details-root {
     padding: 0.5rem !important;

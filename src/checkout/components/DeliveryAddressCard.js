@@ -10,7 +10,7 @@ const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, lo
   const { notify } = useNotification() || { notify: () => {} };
 
   const handleAddNewAddress = () => {
-    navigate('/addresses');
+    navigate('/addresses', { state: { fromCart: true } });
     notify('Add a new delivery address to continue', 'info');
   };
 

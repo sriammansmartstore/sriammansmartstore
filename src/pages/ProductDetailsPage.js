@@ -266,7 +266,12 @@ const ProductDetailsPage = () => {
   }
 
   return (
-    <Box>
+    <Box sx={{ 
+      px: { xs: 1, sm: 4 }, // 16px on mobile, 32px on desktop
+      py: 0, // 32px top and bottom
+      maxWidth: '100%',
+      boxSizing: 'border-box'
+    }}>
       <SEO 
         title={seoData.title}
         description={seoData.description}
@@ -279,23 +284,31 @@ const ProductDetailsPage = () => {
         onClose={() => setShowAuthDialog(false)} 
       />
       
-      {/* Back button */}
-      <Button 
-        startIcon={<ArrowBackIcon />} 
-        onClick={() => navigate(-1)}
-        sx={{ mb: 2, ml: 2, mt: 2 }}
-      >
-        Back to Products
-      </Button>
-      <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: { xs: 0, sm: 3 } }}>
+      <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: 0 }}>
         {/* Image gallery */}
-        <Box sx={{ position: 'relative', width: { xs: '100%', md: 300 }, minHeight: { xs: 220, sm: 300 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: 'inherit' }, p: { xs: 1, sm: 0 } }}>
+        <Box sx={{ position: 'relative', width: '100%', minHeight: { xs: '50vh', sm: '60vh' }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: '#fafafa' } }}>
+          {/* Back button */}
+          <IconButton 
+            onClick={() => navigate(-1)}
+            sx={{ 
+              position: 'absolute', 
+              top: 16, 
+              left: 16, 
+              zIndex: 2, 
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.8)'
+              }
+            }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
           <Box sx={{ position: 'relative', width: '100%' }}>
             <CardMedia
               component="img"
               image={product?.imageUrls?.[selectedImageIdx] || product?.imageUrls?.[0] || "https://via.placeholder.com/300"}
               alt={product?.name}
-              sx={{ width: '100%', height: { xs: 280, sm: 380 }, objectFit: "cover", borderRadius: 2 }}
+              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
             {/* Thumbnails inside image at bottom */}
             {Array.isArray(product?.imageUrls) && product.imageUrls.length > 1 && (

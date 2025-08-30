@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -16,11 +17,15 @@ import {
   useMediaQuery,
   useTheme,
   Alert,
+  DialogContentText,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ArrowBack as ArrowBackIcon, Close as CloseIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, deleteField, deleteDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import BottomNavbar from "../components/BottomNavbar";
 
@@ -44,9 +49,12 @@ const withExponentialBackoff = async (
 // Using initialized Firebase from src/firebase.js
 
 const AddressesPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
+  const [redirectToCart, setRedirectToCart] = useState(false);
   const [editAddressId, setEditAddressId] = useState(null);
   const [form, setForm] = useState({
     fullName: "",
@@ -63,7 +71,9 @@ const AddressesPage = () => {
     landmark: "",
   });
   const [pincodeLoading, setPincodeLoading] = useState(false);
-  const [pincodeError, setPincodeError] = useState(null);
+  const [pincodeError, setPincodeError] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState(null);
   const [formError, setFormError] = useState(null);
   const [primaryId, setPrimaryId] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -79,34 +89,34 @@ const AddressesPage = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch addresses from Firestore once authenticated
-  useEffect(() => {
-    const fetchAddresses = async () => {
-      if (!userId) return;
-      try {
-        const userDocRef = doc(db, "users", userId);
-        const userSnap = await getDoc(userDocRef);
-        let currentPrimaryId = null;
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          currentPrimaryId = data.primaryAddressId || null;
-        }
+  // Function to fetch addresses
+  const fetchAddresses = async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const addressesCol = collection(db, `users/${userId}/addresses`);
+      const addressSnapshot = await getDocs(addressesCol);
+      const addressesList = [];
+      
+      addressSnapshot.forEach((doc) => {
+        addressesList.push({ id: doc.id, ...doc.data() });
+      });
+      setAddresses(addressesList);
 
-        const addressesCol = collection(userDocRef, "addresses");
-        const addressesSnap = await getDocs(addressesCol);
-        const addressesArr = addressesSnap.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        setAddresses(addressesArr);
-        setPrimaryId(currentPrimaryId);
-      } catch (e) {
-        console.error("Error fetching addresses:", e);
-      } finally {
-        setLoading(false);
+      // Get primary address ID
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+        setPrimaryId(userDoc.data().primaryAddressId || null);
       }
-    };
+    } catch (e) {
+      console.error("Error fetching addresses:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch addresses on component mount and when dialog closes
+  useEffect(() => {
     fetchAddresses();
   }, [userId, openDialog]);
 
@@ -174,11 +184,14 @@ const AddressesPage = () => {
       setFormError("Please fill in all required fields (marked with *)");
       return;
     }
+    
+    const shouldRedirect = location.state?.fromCart;
     if (!userId) return;
     const userDocRef = doc(db, "users", userId);
     const addressesCol = collection(userDocRef, "addresses");
 
     try {
+      // First, save the address
       if (editAddressId) {
         // Update existing address
         const addressDocRef = doc(addressesCol, editAddressId);
@@ -197,7 +210,39 @@ const AddressesPage = () => {
           );
         }
       }
-      handleCloseDialog();
+      
+      // Reset form state
+      const resetForm = () => {
+        setForm({
+          fullName: "",
+          fatherOrSpouse: "",
+          door: "",
+          street: "",
+          pincode: "",
+          town: "",
+          city: "",
+          district: "",
+          state: "",
+          contact: "",
+          altContact: "",
+          landmark: "",
+        });
+        setOpenDialog(false);
+        setEditAddressId(null);
+        setFormError(null);
+        setPincodeError(null);
+      };
+      
+      // Reset form and handle redirection in the same state update
+      if (shouldRedirect) {
+        resetForm();
+        // Use setTimeout to ensure state updates are processed before navigation
+        setTimeout(() => {
+          navigate('/cart', { replace: true });
+        }, 0);
+      } else {
+        resetForm();
+      }
     } catch (e) {
       console.error("Error saving address:", e);
       setFormError("Failed to save address. Please try again.");
@@ -258,33 +303,83 @@ const AddressesPage = () => {
     }
   };
 
+  // Handle delete address
+  const handleDeleteClick = (address) => {
+    setAddressToDelete(address);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!addressToDelete || !userId) return;
+    
+    try {
+      const addressDocRef = doc(db, `users/${userId}/addresses`, addressToDelete.id);
+      await deleteDoc(addressDocRef);
+      
+      // If the deleted address was primary, clear the primary address
+      if (primaryId === addressToDelete.id) {
+        const userDocRef = doc(db, "users", userId);
+        await setDoc(userDocRef, { primaryAddressId: deleteField() }, { merge: true });
+        setPrimaryId(null);
+      }
+      
+      // Refresh the addresses list
+      fetchAddresses();
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error("Error deleting address:", error);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setAddressToDelete(null);
+  };
+  
   return (
     <Box
       sx={{
-        p: { xs: 2, md: 4 },
-        backgroundColor: "#f5f5f5",
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        // Leave space for fixed BottomNavbar
-        pb: { xs: 10, sm: 12 },
+        minHeight: "100vh",
+        backgroundColor: "grey.50",
+        padding: '0 16px',
+        margin: 0,
+        boxSizing: "border-box",
       }}
     >
-      {/* Header with back button and title */}
+      {/* Header with Back Button */}
       <Box
         sx={{
-          display: "flex",
-          alignItems: "center",
           width: "100%",
           maxWidth: "700px",
-          mb: 3,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          margin: 0,
+          padding: '8px 0',
         }}
       >
-        <IconButton onClick={() => window.history.back()} size="large">
+        <IconButton
+          onClick={() => navigate(-1)}
+          sx={{
+            color: "text.primary",
+            "&:hover": {
+              backgroundColor: "rgba(0,0,0,0.04)",
+            },
+          }}
+        >
           <ArrowBackIcon />
         </IconButton>
-        <Typography variant="h5" sx={{ flexGrow: 1, ml: 1, fontWeight: 600 }}>
+        <Typography
+          variant="h5"
+          component="h1"
+          sx={{
+            fontWeight: 600,
+            flexGrow: 1,
+          }}
+        >
           Your Addresses
         </Typography>
       </Box>
@@ -377,18 +472,39 @@ const AddressesPage = () => {
                   label="Primary"
                   sx={{ mr: { xs: 0, sm: "auto" } }}
                 />
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => handleOpenDialog(addr)}
-                  sx={{
-                    borderRadius: 2,
-                    borderColor: theme.palette.grey[300],
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  Edit
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleOpenDialog(addr)}
+                    sx={{
+                      borderRadius: 2,
+                      borderColor: theme.palette.grey[300],
+                      color: theme.palette.text.primary,
+                      minWidth: '80px'
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleDeleteClick(addr)}
+                    sx={{
+                      borderRadius: 2,
+                      borderColor: theme.palette.error.light,
+                      color: theme.palette.error.main,
+                      '&:hover': {
+                        backgroundColor: 'rgba(211, 47, 47, 0.04)',
+                        borderColor: theme.palette.error.main,
+                      },
+                      minWidth: '80px'
+                    }}
+                    startIcon={<DeleteIcon fontSize="small" />}
+                  >
+                    Delete
+                  </Button>
+                </Box>
               </Box>
             </Box>
           ))
@@ -417,11 +533,19 @@ const AddressesPage = () => {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            m: 0,
+            '& .MuiTypography-root': {
+              m: 0,
+              flex: 1,
+              typography: 'h6',
+              component: 'h2'
+            }
           }}
+          disableTypography
         >
-          <Typography variant="h6">
+          <Box component="div">
             {editAddressId ? "Edit Address" : "Add New Address"}
-          </Typography>
+          </Box>
           <IconButton onClick={handleCloseDialog} aria-label="close">
             <CloseIcon />
           </IconButton>
@@ -608,6 +732,34 @@ const AddressesPage = () => {
         </DialogActions>
       </Dialog>
       {/* Bottom Navigation */}
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete Address</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this address? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} color="primary">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error"
+            variant="contained"
+            autoFocus
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <BottomNavbar />
     </Box>
   );
