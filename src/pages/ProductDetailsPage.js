@@ -197,6 +197,7 @@ const ProductDetailsPage = () => {
   
   const selectedOption = options[selectedOptionIdx] || options[0];
   const discount = getDiscount(selectedOption.mrp, selectedOption.sellingPrice);
+  const savings = Math.max(0, (selectedOption?.mrp ?? 0) - (selectedOption?.sellingPrice ?? 0));
   const avgRating = reviews.length ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : 0;
   const [cartLoading, setCartLoading] = useState(false);
   const [cartAdded, setCartAdded] = useState(false);
@@ -267,8 +268,8 @@ const ProductDetailsPage = () => {
 
   return (
     <Box sx={{ 
-      px: { xs: 1, sm: 4 }, // 16px on mobile, 32px on desktop
-      py: 0, // 32px top and bottom
+      px: { xs: 0, sm: 4 }, // 0 on mobile for edge-to-edge, 32px on desktop
+      py: 0,
       maxWidth: '100%',
       boxSizing: 'border-box'
     }}>
@@ -286,7 +287,7 @@ const ProductDetailsPage = () => {
       
       <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: 0 }}>
         {/* Image gallery */}
-        <Box sx={{ position: 'relative', width: '100%', height: { xs: 320, sm: 420 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: '#fafafa' } }}>
+        <Box sx={{ position: 'relative', width: '100%', height: { xs: 320, sm: 420 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: '#fafafa' }, pb: 0, overflow: 'hidden' }}>
           {/* Back button */}
           <IconButton 
             onClick={() => navigate(-1)}
@@ -303,12 +304,20 @@ const ProductDetailsPage = () => {
           >
             <ArrowBackIcon />
           </IconButton>
-          <Box sx={{ position: 'relative', width: '100%' }}>
+          <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
             <CardMedia
-              component="img"
-              image={product?.imageUrls?.[selectedImageIdx] || product?.imageUrls?.[0] || "https://via.placeholder.com/300"}
-              alt={product?.name}
-              sx={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#ffffff' }}
+              component="div"
+              role="img"
+              aria-label={product?.name || 'Product image'}
+              sx={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#ffffff',
+                backgroundImage: `url(${product?.imageUrls?.[selectedImageIdx] || product?.imageUrls?.[0] || 'https://via.placeholder.com/300'})`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: '50% 55%',
+                backgroundSize: 'cover',
+              }}
             />
             {/* Thumbnails inside image at bottom */}
             {Array.isArray(product?.imageUrls) && product.imageUrls.length > 1 && (
@@ -326,11 +335,13 @@ const ProductDetailsPage = () => {
               </Box>
             )}
           </Box>
-          {/* Wishlist widget at top right of image area */}
-          <WishlistWidget product={product} selectedOption={selectedOption} onAdd={() => { /* noop */ }} />
+          {/* Wishlist widget overlaid at top-right of image area */}
+          <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}>
+            <WishlistWidget product={product} selectedOption={selectedOption} onAdd={() => { /* noop */ }} />
+          </Box>
         </Box>
 
-        <CardContent sx={{ flex: 1, px: { xs: 0.5, sm: 2 }, py: { xs: 1, sm: 2 } }}>
+        <CardContent sx={{ flex: 1, px: { xs: 0, sm: 2 }, pt: { xs: 0, sm: 2 }, pb: { xs: 1, sm: 2 } }}>
           <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: '1.2rem', sm: '2rem' }, wordBreak: 'break-word' }}>{product.name}</Typography>
           {/* Star ratings below product name */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, mt: 0.5 }}>
@@ -338,7 +349,7 @@ const ProductDetailsPage = () => {
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{avgRating || "No ratings yet"}</Typography>
             <Typography variant="body2" sx={{ color: '#888', ml: 1 }}>({reviews.length} reviews)</Typography>
           </Box>
-          <Divider sx={{ my: 2 }} />
+          <Divider sx={{ mt: { xs: 1, sm: 2 }, mb: 2 }} />
           {/* Modern pricing and cart UI */}
        
           {/* Unit selector - horizontally scrollable and spaced */}
@@ -373,30 +384,45 @@ const ProductDetailsPage = () => {
 )}
 
 {/* Price display based on selected unit */}
-<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5, mb: 2, mt: 1 }}>
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-    <Typography variant="h4" sx={{ fontWeight: 900, color: '#388e3c', fontSize: { xs: '2rem', sm: '2.5rem' } }}>
-      ₹{selectedOption.sellingPrice}
-    </Typography>
-    {discount > 0 && (
-      <Typography variant="body2" sx={{ color: '#d32f2f', fontWeight: 600, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
-        {discount}% OFF
+  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5, mb: 2, mt: 1 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+      <Typography variant="h4" sx={{ fontWeight: 900, color: '#388e3c', fontSize: { xs: '2rem', sm: '2.5rem' } }}>
+        ₹{selectedOption.sellingPrice}
       </Typography>
-    )}
+      {savings > 0 && (
+        <Box sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.25,
+          py: 0.5,
+          borderRadius: 999,
+          background: 'linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%)',
+          boxShadow: '0 2px 6px rgba(56,142,60,0.16)',
+          border: '1px solid rgba(56,142,60,0.22)'
+        }}>
+          <Typography variant="body2" sx={{ fontWeight: 800, color: '#2e7d32' }}>
+            You save: ₹{savings.toLocaleString('en-IN')}
+          </Typography>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: '#2e7d32', opacity: 0.9 }}>
+            ({discount}% off)
+          </Typography>
+        </Box>
+      )}
+    </Box>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      {discount > 0 && (
+        <Typography variant="body2" sx={{ color: '#888', textDecoration: 'line-through', fontWeight: 500, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
+          MRP ₹{selectedOption.mrp}
+        </Typography>
+      )}
+      {discount > 0 && (
+        <Typography variant="body2" sx={{ color: '#888', fontWeight: 500, fontSize: { xs: '1.05rem', sm: '1.1rem' } }}>
+          (Incl Of All Taxes)
+        </Typography>
+      )}
+    </Box>
   </Box>
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-    {discount > 0 && (
-      <Typography variant="body2" sx={{ color: '#888', textDecoration: 'line-through', fontWeight: 500, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
-        MRP ₹{selectedOption.mrp}
-      </Typography>
-    )}
-    {discount > 0 && (
-      <Typography variant="body2" sx={{ color: '#888', fontWeight: 500, fontSize: { xs: '1.05rem', sm: '1.1rem' } }}>
-        (Incl Of All Taxes)
-      </Typography>
-    )}
-  </Box>
-</Box>
 {/* ...existing code... */}
 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
   <Typography variant="body2" sx={{ fontWeight: 700, color: '#555', mr: 1 }}>Qty</Typography>
