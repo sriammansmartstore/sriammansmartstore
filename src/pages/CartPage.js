@@ -8,6 +8,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 // Component and Hook Imports
 import OrderSummaryCard from "../checkout/components/OrderSummaryCard";
 import DeliveryAddressCard from "../checkout/components/DeliveryAddressCard";
+import PromoCodeCard from "../checkout/components/PromoCodeCard";
 import { useCheckoutData } from "../hooks/useCheckoutData";
 import { calculateOrderSummary } from "../utils/orderUtils";
 
@@ -15,6 +16,7 @@ const CartPage = () => {
   const { user } = useContext(AuthContext);
   const { notify } = useNotification() || { notify: () => {} };
   const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState("");
   const [cartVersion, setCartVersion] = useState(0); // Used to force re-render on cart updates
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,8 +30,23 @@ const CartPage = () => {
   
   const orderSummary = useMemo(() => {
     console.log('Cart items in CartPage:', itemsToProcess);
-    return calculateOrderSummary(itemsToProcess);
-  }, [itemsToProcess]);
+    const summary = calculateOrderSummary(itemsToProcess);
+    
+    // Apply promo code discount if any
+    if (appliedPromo) {
+      // Add your promo code logic here
+      // For example: 10% off for demo purposes
+      const discount = summary.subtotal * 0.1;
+      return {
+        ...summary,
+        discount,
+        total: summary.total - discount,
+        promoCode: appliedPromo
+      };
+    }
+    
+    return summary;
+  }, [itemsToProcess, appliedPromo]);
 
   const selectedAddressObject = useMemo(
     () => addresses.find((a) => a.id === selectedAddressId),
@@ -139,8 +156,11 @@ const CartPage = () => {
           <DeliveryAddressCard
             addresses={addresses}
             selectedAddressId={selectedAddressId}
-            onAddressChange={(e) => setSelectedAddressId(e.target.value)}
-            loading={loading}
+            onSelectAddress={setSelectedAddressId}
+            onAddNewAddress={() => navigate('/addresses', { state: { fromCart: true } })}
+          />
+          <PromoCodeCard
+            onApplyPromo={(code) => setAppliedPromo(code)}
           />
         </Box>
 

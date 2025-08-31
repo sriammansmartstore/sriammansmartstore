@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Box, Button, Menu, MenuItem, Slider, Typography, IconButton, TextField, Checkbox, FormControlLabel, Divider } from "@mui/material";
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
@@ -34,8 +34,10 @@ const SortFilterBar = ({
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
+  const sortAnchorRef = useRef(null);
+  const filterAnchorRef = useRef(null);
 
-  const handleSortClick = (event) => setAnchorEl(event.currentTarget);
+  const handleSortClick = (event) => setAnchorEl(sortAnchorRef.current || event.currentTarget);
   const handleSortClose = () => setAnchorEl(null);
   const handleSortSelect = (option) => {
     setSort(option);
@@ -43,23 +45,60 @@ const SortFilterBar = ({
     if (onApply) onApply();
   };
 
-  const handleFilterClick = (event) => setFilterAnchorEl(event.currentTarget);
+  const handleFilterClick = (event) => setFilterAnchorEl(filterAnchorRef.current || event.currentTarget);
   const handleFilterClose = () => setFilterAnchorEl(null);
 
   // ...existing code...
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, px: 2, pt: 1, pb: 1, bgcolor: '#f7f7f7', borderRadius: 2, boxShadow: 1 }}>
-      <IconButton onClick={handleSortClick} color="primary"><SortIcon /></IconButton>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>Sort</Typography>
+    <Box sx={{
+      display: 'flex',
+      alignItems: 'stretch',
+      justifyContent: 'space-between',
+      gap: 0,
+      mb: 0,
+      px: 0,
+      py: 0,
+      bgcolor: 'transparent',
+      height: 44,
+    }}>
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'stretch',
+        justifyContent: 'space-between',
+        width: '100%',
+        background: 'linear-gradient(90deg, #43a047 0%, #2e7d32 100%)',
+        color: '#fff',
+        borderRadius: 0,
+        boxShadow: '0 -2px 8px rgba(0,0,0,0.12)',
+      }}>
+      <Box
+        ref={sortAnchorRef}
+        onClick={handleSortClick}
+        role="button"
+        aria-label="open sort menu"
+        sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer', userSelect: 'none', color: '#fff', ':hover': { bgcolor: 'rgba(255,255,255,0.08)' } }}
+      >
+        <SortIcon sx={{ color: '#fff' }} fontSize="small" />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>Sort</Typography>
+      </Box>
+      <Divider orientation="vertical" flexItem sx={{ borderColor: 'rgba(255,255,255,0.3)' }} />
+      <Box
+        ref={filterAnchorRef}
+        onClick={handleFilterClick}
+        role="button"
+        aria-label="open filter menu"
+        sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer', userSelect: 'none', color: '#fff', ':hover': { bgcolor: 'rgba(255,255,255,0.08)' } }}
+      >
+        <FilterListIcon sx={{ color: '#fff' }} fontSize="small" />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>Filter</Typography>
+      </Box>
+      </Box>
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleSortClose}>
         {SORT_OPTIONS.map(opt => (
           <MenuItem key={opt.value} selected={sort === opt.value} onClick={() => handleSortSelect(opt.value)}>{opt.label}</MenuItem>
         ))}
       </Menu>
-      <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-      <IconButton onClick={handleFilterClick} color="primary"><FilterListIcon /></IconButton>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>Filter</Typography>
       <Menu anchorEl={filterAnchorEl} open={Boolean(filterAnchorEl)} onClose={handleFilterClose}>
         <Box sx={{ px: 2, py: 1, minWidth: 260 }}>
           <Typography variant="subtitle2">Price Range</Typography>

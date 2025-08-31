@@ -286,7 +286,7 @@ const ProductDetailsPage = () => {
       
       <Card sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, boxShadow: 0, position: 'relative', borderRadius: 0 }}>
         {/* Image gallery */}
-        <Box sx={{ position: 'relative', width: '100%', minHeight: { xs: '50vh', sm: '60vh' }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: '#fafafa' } }}>
+        <Box sx={{ position: 'relative', width: '100%', height: { xs: 320, sm: 420 }, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: { xs: '#fafafa', sm: '#fafafa' } }}>
           {/* Back button */}
           <IconButton 
             onClick={() => navigate(-1)}
@@ -308,7 +308,7 @@ const ProductDetailsPage = () => {
               component="img"
               image={product?.imageUrls?.[selectedImageIdx] || product?.imageUrls?.[0] || "https://via.placeholder.com/300"}
               alt={product?.name}
-              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              sx={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#ffffff' }}
             />
             {/* Thumbnails inside image at bottom */}
             {Array.isArray(product?.imageUrls) && product.imageUrls.length > 1 && (
@@ -373,20 +373,29 @@ const ProductDetailsPage = () => {
 )}
 
 {/* Price display based on selected unit */}
-<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, mt: 1 }}>
-  <Typography variant="h4" sx={{ fontWeight: 700, color: '#388e3c', fontSize: { xs: '2rem', sm: '2.5rem' } }}>
-    ₹{selectedOption.sellingPrice}
-  </Typography>
-  {discount > 0 && (
-    <Typography variant="body2" sx={{ color: '#888', textDecoration: 'line-through', fontWeight: 500, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
-      ₹{selectedOption.mrp}
+<Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5, mb: 2, mt: 1 }}>
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+    <Typography variant="h4" sx={{ fontWeight: 900, color: '#388e3c', fontSize: { xs: '2rem', sm: '2.5rem' } }}>
+      ₹{selectedOption.sellingPrice}
     </Typography>
-  )}
-  {discount > 0 && (
-    <Typography variant="body2" sx={{ color: '#d32f2f', fontWeight: 600, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
-      {discount}% OFF
-    </Typography>
-  )}
+    {discount > 0 && (
+      <Typography variant="body2" sx={{ color: '#d32f2f', fontWeight: 600, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
+        {discount}% OFF
+      </Typography>
+    )}
+  </Box>
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+    {discount > 0 && (
+      <Typography variant="body2" sx={{ color: '#888', textDecoration: 'line-through', fontWeight: 500, fontSize: { xs: '1.1rem', sm: '1.2rem' } }}>
+        MRP ₹{selectedOption.mrp}
+      </Typography>
+    )}
+    {discount > 0 && (
+      <Typography variant="body2" sx={{ color: '#888', fontWeight: 500, fontSize: { xs: '1.05rem', sm: '1.1rem' } }}>
+        (Incl Of All Taxes)
+      </Typography>
+    )}
+  </Box>
 </Box>
 {/* ...existing code... */}
 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>

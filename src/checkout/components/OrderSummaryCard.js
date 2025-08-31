@@ -398,6 +398,19 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
           <Typography sx={{ fontWeight: 700, color: 'text.primary' }}>Subtotal</Typography>
           <Typography sx={{ fontWeight: 800, color: 'text.primary' }}>{fmt(subTotal)}</Typography>
         </Box>
+        
+        {summary?.promoCode && (
+          <>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+              <Typography color="text.secondary">Promo Code ({summary.promoCode})</Typography>
+              <Typography color="success.main">-{fmt(summary.discount || 0)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+              <Typography sx={{ fontWeight: 700, color: 'text.primary' }}>Total After Discount</Typography>
+              <Typography sx={{ fontWeight: 800, color: 'primary.main' }}>{fmt(summary.total || subTotal)}</Typography>
+            </Box>
+          </>
+        )}
       </CardContent>
     </Card>
   );

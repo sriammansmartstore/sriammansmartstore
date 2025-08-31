@@ -51,16 +51,29 @@
   box-shadow: 0 4px 12px rgba(56, 142, 60, 0.12);
   transition: transform 0.2s, box-shadow 0.2s;
   background: white;
-  width: 100%;
+  width: calc(50% - 12px); /* Two cards per row with gap */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  margin: 4px 0;
+  margin: 6px;
   position: relative;
-  padding: 6px;
+  padding: 12px 8px;
   box-sizing: border-box;
   overflow: hidden;
+  flex: 1 1 calc(50% - 12px); /* Flex basis for equal width */
+  min-width: 140px;
+  max-width: 100%;
+}
+
+/* Container for product cards */
+.products-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 4px;
+  margin: 0 -6px; /* Compensate for card margins */
 }
 
 /* Badge container for discount ribbon */
@@ -77,22 +90,24 @@
 
 /* Uniform image container */
 .product-card-image-container {
-  width: 140px;
+  width: 100%;
+  aspect-ratio: 1/1; /* Makes the container square */
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f9f9f9;
-  margin: 8px auto;
+  margin: 0 auto 8px;
   overflow: hidden;
   padding: 8px;
+  border-radius: 8px;
 }
 
 .product-card img {
-  max-width: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-
   display: block;
-  border-radius: 16px !important;
+  border-radius: 8px !important;
 }
 
 /* Consistent text styling */

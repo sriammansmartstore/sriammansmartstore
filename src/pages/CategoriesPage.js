@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Grid, Card, CardMedia, Skeleton, Dialog, DialogTitle, DialogContent } from "@mui/material";
+import { Box, Typography, Grid, Card, CardMedia, Skeleton, Dialog, DialogTitle, DialogContent, Drawer, List, ListItemButton, ListItemText, ListItemAvatar, Avatar, IconButton } from "@mui/material";
 import { Button } from "@mui/material";
+import CategoryIcon from "@mui/icons-material/Category";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate } from "react-router-dom";
-import { getFirestore, collection, getDocs, query, orderBy } from "firebase/firestore";
+import { getFirestore, collection, getDocs, query, orderBy, where } from "firebase/firestore";
 import ProductCard from "../components/ProductCard";
 import SortFilterBar from "../components/SortFilterBar";
 import './CategoriesPage.css';
@@ -18,7 +21,13 @@ const CategoriesPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Auto-open category drawer on first load
+  useEffect(() => {
+    setDrawerOpen(true);
+  }, []);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -68,7 +77,8 @@ const CategoriesPage = () => {
         // Attempt with ID
         try {
           const refById = collection(db, `products/${catId}/items`);
-          const qById = query(refById, orderBy('createdAt', 'desc'));
+          // Build a query with filters/sort where possible
+          const qById = buildQueryWithCriteria(refById);
           const snapById = await getDocs(qById);
           usedPath = refById.path;
           if (!snapById.empty) {
@@ -84,7 +94,7 @@ const CategoriesPage = () => {
         // Fallback with Name if needed
         if (productsData.length === 0 && catName) {
           const refByName = collection(db, `products/${catName}/items`);
-          const qByName = query(refByName, orderBy('createdAt', 'desc'));
+          const qByName = buildQueryWithCriteria(refByName);
           const snapByName = await getDocs(qByName);
           usedPath = refByName.path;
           productsData = snapByName.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -115,8 +125,38 @@ const CategoriesPage = () => {
           }
         }
 
-        console.log('Fetched productsData:', productsData);
-        setProducts(productsData);
+        // Client-side post-filters for what Firestore can't do (discount calc, unit/brand arrays, upper bounds)
+        let finalData = productsData;
+        // Apply price upper bound if server query couldn't include both bounds
+        if (filters.price[0] > 0 || filters.price[1] < 10000) {
+          finalData = finalData.filter(p => (p.sellingPrice || p.price) >= filters.price[0] && (p.sellingPrice || p.price) <= filters.price[1]);
+        }
+        // Rating upper bound
+        if (filters.rating[1] < 5) {
+          finalData = finalData.filter(p => (p.rating || 0) <= filters.rating[1]);
+        }
+        // Unit and brand filters
+        if (filters.unit.length > 0) finalData = finalData.filter(p => filters.unit.includes(p.unit));
+        if (filters.brand.length > 0) finalData = finalData.filter(p => filters.brand.includes(p.brand));
+        // Discount range (requires computation)
+        if (filters.discount[0] > 0 || filters.discount[1] < 100) {
+          finalData = finalData.filter(p => {
+            const mrp = p.mrp || 0, sp = p.sellingPrice || p.price || 0;
+            const dis = mrp > 0 ? Math.round(((mrp - sp) / mrp) * 100) : 0;
+            return dis >= filters.discount[0] && dis <= filters.discount[1];
+          });
+        }
+        // Client-side sort when unsupported (discount)
+        if (sort === 'discount') {
+          finalData.sort((a, b) => {
+            const dA = a.mrp && a.sellingPrice ? ((a.mrp - a.sellingPrice) / a.mrp) : 0;
+            const dB = b.mrp && b.sellingPrice ? ((b.mrp - b.sellingPrice) / b.mrp) : 0;
+            return dB - dA;
+          });
+        }
+
+        console.log('Fetched productsData:', finalData);
+        setProducts(finalData);
         setLoadingProducts(false);
         console.log('Set products and loadingProducts to false');
       } catch (error) {
@@ -125,7 +165,38 @@ const CategoriesPage = () => {
       }
     };
     fetchProducts();
-  }, [selectedCategory]);
+  }, [selectedCategory, sort, filters.available, filters.price, filters.rating]);
+
+  // Helper to build server-side Firestore query based on current sort/filters
+  const buildQueryWithCriteria = (baseRef) => {
+    const whereClauses = [];
+    let qOrderBy = null;
+    let qDirection = 'desc';
+
+    // Availability
+    if (filters.available) whereClauses.push(where('available', '==', true));
+    // Rating lower bound
+    if (filters.rating[0] > 0) whereClauses.push(where('rating', '>=', filters.rating[0]));
+    // Price range lower bound (upper bound might be applied client-side if needed due to index constraints)
+    if (filters.price[0] > 0) whereClauses.push(where('sellingPrice', '>=', filters.price[0]));
+    // We will still attempt to add upper bound; if missing index, Firestore will error in console; users can add index later
+    if (filters.price[1] < 10000) whereClauses.push(where('sellingPrice', '<=', filters.price[1]));
+
+    switch (sort) {
+      case 'priceLowHigh': qOrderBy = 'sellingPrice'; qDirection = 'asc'; break;
+      case 'priceHighLow': qOrderBy = 'sellingPrice'; qDirection = 'desc'; break;
+      case 'newest': qOrderBy = 'createdAt'; qDirection = 'desc'; break;
+      case 'oldest': qOrderBy = 'createdAt'; qDirection = 'asc'; break;
+      case 'nameAZ': qOrderBy = 'name'; qDirection = 'asc'; break;
+      case 'nameZA': qOrderBy = 'name'; qDirection = 'desc'; break;
+      case 'rating': qOrderBy = 'rating'; qDirection = 'desc'; break;
+      default: qOrderBy = 'createdAt'; qDirection = 'desc'; break;
+    }
+
+    let qRef = query(baseRef, ...whereClauses);
+    qRef = query(qRef, orderBy(qOrderBy, qDirection));
+    return qRef;
+  };
 
   // Filter and sort products for selected category
   const getFilteredProducts = () => {
@@ -174,115 +245,147 @@ const CategoriesPage = () => {
   const filteredProducts = getFilteredProducts();
   const isScrollable = loadingProducts || filteredProducts.length > 0;
   return (
-    <Box className="categories-root" sx={{ pb: 2, display: 'flex', flexDirection: 'row', position: 'relative', gap: 2 }}>
-      {/* Vertically stacked categories sidebar on the left */}
+    <div className="categories-root">
+      {/* Right-attached rectangular tab to open category drawer (mid-right) */}
       <Box
+        role="button"
+        aria-label="open categories"
+        onClick={() => setDrawerOpen(true)}
         sx={{
-          position: 'sticky',
-          left: 0,
-          bgcolor: '#fff',
-          boxShadow: 2,
-          zIndex: 100,
-          px: 1,
-          py: 1,
-          minWidth: 90,
-          maxWidth: 110,
-          maxHeight: 'calc(100vh - 90px)',
-          overflowY: 'auto',
-          borderRadius: 2,
+          position: 'fixed',
+          right: 0,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          zIndex: 1300,
+          width: 26,
+          height: 116,
           display: 'flex',
-          flexDirection: 'column',
-          gap: 1.5,
-          borderRight: '3px solid #388e3c',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(180deg, #43a047 0%, #2e7d32 100%)',
+          color: '#fff',
+          borderTopLeftRadius: 12,
+          borderBottomLeftRadius: 12,
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          borderLeft: '1px solid rgba(255,255,255,0.2)',
+          cursor: 'pointer',
+          userSelect: 'none',
+          '&:hover': { filter: 'brightness(1.05)' }
         }}
       >
-        {loadingCategories ? (
-          Array.from({ length: 5 }).map((_, idx) => (
-            <Skeleton key={idx} variant="rectangular" width={54} height={54} sx={{ borderRadius: 2 }} />
-          ))
-        ) : categories.length === 0 ? (
-          <Typography>No categories found.</Typography>
-        ) : (
-          categories.map(cat => (
-            <Card
-              key={cat.id}
-              className="category-card"
-              sx={{
-                minWidth: 54,
-                maxWidth: 80,
-                cursor: 'pointer',
-                border: selectedCategory?.id === cat.id ? '2px solid #1976d2' : '1px solid #eee',
-                boxShadow: selectedCategory?.id === cat.id ? 3 : 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                p: 0.5,
-                bgcolor: selectedCategory?.id === cat.id ? '#e3f2fd' : '#fff',
-              }}
-              onClick={() => setSelectedCategory(cat)}
-            >
-              <CardMedia
-                component="img"
-                image={cat.imageUrl}
-                alt={cat.name}
-                sx={{ width: 38, height: 38, objectFit: 'cover', borderRadius: 2, mb: 0.5, background: '#f7f7f7' }}
-              />
-              <Typography variant="body2" fontWeight={600} color="primary" sx={{ textAlign: 'center', fontSize: 12 }}>
-                {cat.name}
-              </Typography>
-            </Card>
-          ))
-        )}
+        <ChevronLeftIcon sx={{ color: '#fff' }} />
       </Box>
-      {/* Products area (scrollable) */}
-      <Box
-        sx={{
-          flex: '1 1 auto',
-          pl: { xs: 1, md: 2 },
-          maxWidth: { xs: '100%', md: 'calc(100% - 120px)' },
-          maxHeight: isScrollable ? 'calc(100vh - 90px)' : 'none',
-          overflowY: isScrollable ? 'auto' : 'visible',
-          pt: 0,
-          pr: 1,
-        }}
+
+      {/* Right side drawer for category selection */}
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        variant="persistent"
+        ModalProps={{ keepMounted: true, hideBackdrop: true, disableEscapeKeyDown: true, disableScrollLock: true }}
+        PaperProps={{ sx: { width: { xs: '50vw', sm: '50vw' }, maxWidth: 520, top: { xs: 56, sm: 64 }, bottom: { xs: 120, sm: 120 }, overflow: 'auto' } }}
       >
-        {/* Products Grid */}
-        <Grid container spacing={2} sx={{ justifyContent: 'center', mb: 2 }}>
-          {loadingProducts ? (
-            Array.from({ length: 4 }).map((_, idx) => (
-              <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={idx}
-                sx={{
-                  display: 'flex',
-                  flexBasis: '45%',
-                  maxWidth: '45%',
-                  flexGrow: 0
-                }}>
-                <Skeleton variant="rectangular" width="100%" height={220} sx={{ borderRadius: 2, mb: 2 }} />
-              </Grid>
-            ))
-          ) : filteredProducts.length === 0 ? (
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', pt: 2, pb: 3 }}>
-                <Typography color="text.secondary" align="center">
-                  No products found for this category.
-                </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#388e3c' }}>Select Category</Typography>
+          <IconButton size="small" onClick={() => setDrawerOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <List sx={{ py: 0 }}>
+          {loadingCategories ? (
+            Array(8).fill().map((_, i) => (
+              <Box key={`cat-skel-${i}`} sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1 }}>
+                <Skeleton variant="circular" width={40} height={40} sx={{ mr: 1.5 }} />
+                <Skeleton variant="text" width={160} height={24} />
               </Box>
-            </Grid>
+            ))
           ) : (
-            filteredProducts.map(product => (
-              <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id}
-                sx={{
-                  display: 'flex',
-                  flexBasis: '45%',
-                  maxWidth: '45%',
-                  flexGrow: 0
-                }}>
-                <ProductCard product={product} />
-              </Grid>
+            categories.map((cat) => (
+              <ListItemButton
+                key={cat.id}
+                selected={selectedCategory?.id === cat.id}
+                onClick={() => { setSelectedCategory(cat); setDrawerOpen(false); }}
+              >
+                <ListItemAvatar>
+                  <Avatar src={cat.imageUrl} alt={cat.name}>
+                    <CategoryIcon fontSize="small" />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText primary={cat.name} secondary={cat.description ? String(cat.description).slice(0, 48) : null} />
+              </ListItemButton>
             ))
           )}
-        </Grid>
-      </Box>
+        </List>
+      </Drawer>
+      {/* Removed top categories bar to match Home layout */}
+
+      {/* Main Content Area */}
+      <div className="categories-main">
+        {/* Header */}
+        <div className="categories-header">
+          <Typography variant="h6" sx={{ 
+            fontWeight: 'bold', 
+            color: '#388e3c',
+            fontSize: '1.1rem'
+          }}>
+            {selectedCategory?.name || 'Categories'}
+          </Typography>
+        </div>
+
+        {/* Products Container */}
+        <div className="products-container">
+          <Grid container spacing={2} sx={{ justifyContent: 'center', alignItems: 'flex-start' }}>
+            {loadingProducts ? (
+              Array(8).fill().map((_, index) => (
+                <Grid item xs={6} sm={6} md={6} key={`product-skeleton-${index}`}>
+                  <Box sx={{ width: '100%', bgcolor: '#fff', borderRadius: 2, boxShadow: 1, p: 1 }}>
+                    <Skeleton variant="rectangular" width="100%" height={120} sx={{ borderRadius: 2 }} />
+                    <Skeleton width="80%" height={16} sx={{ mt: 1 }} />
+                    <Skeleton width="60%" height={14} />
+                  </Box>
+                </Grid>
+              ))
+            ) : filteredProducts.length === 0 ? (
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px', textAlign: 'center', p: 3 }}>
+                  <Typography color="text.secondary" variant="body2">
+                    No products found for this category.
+                  </Typography>
+                </Box>
+              </Grid>
+            ) : (
+              filteredProducts.map(product => (
+                <Grid item xs={6} sm={6} md={6} key={product.id}>
+                  <Box sx={{ width: '100%' }}>
+                    <ProductCard product={product} />
+                  </Box>
+                </Grid>
+              ))
+            )}
+          </Grid>
+        </div>
+      </div>
+
+      {/* Fixed Sort/Filter Bar - Above Bottom Nav */}
+      <div className="sort-filter-fixed">
+        <SortFilterBar 
+          sort={sort}
+          setSort={setSort}
+          filters={filters}
+          setFilters={setFilters}
+          units={[]}
+          brands={[]}
+          minPrice={0}
+          maxPrice={10000}
+          minDiscount={0}
+          maxDiscount={100}
+          minRating={0}
+          maxRating={5}
+          onApply={() => { /* Re-fetch using Firestore with current criteria */ setLoadingProducts(true); setTimeout(() => setLoadingProducts(false), 0); /* trigger useEffect via state changes already wired */ }}
+        />
+      </div>
 
       {/* Category Details Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -301,7 +404,7 @@ const CategoriesPage = () => {
           </Box>
         </DialogContent>
       </Dialog>
-    </Box>
+    </div>
   );
 };
 
