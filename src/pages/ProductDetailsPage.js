@@ -268,7 +268,7 @@ const ProductDetailsPage = () => {
 
   return (
     <Box sx={{ 
-      px: { xs: 0, sm: 4 }, // 0 on mobile for edge-to-edge, 32px on desktop
+      px: { xs: 1.5, sm: 4 }, // 12px on mobile, 32px on desktop
       py: 0,
       maxWidth: '100%',
       boxSizing: 'border-box'
@@ -342,7 +342,25 @@ const ProductDetailsPage = () => {
         </Box>
 
         <CardContent sx={{ flex: 1, px: { xs: 0, sm: 2 }, pt: { xs: 0, sm: 2 }, pb: { xs: 1, sm: 2 } }}>
-          <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: '1.2rem', sm: '2rem' }, wordBreak: 'break-word' }}>{product.name}</Typography>
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{
+              fontWeight: 800,
+              color: '#212121',
+              fontSize: { xs: '1.35rem', sm: '1.75rem', md: '2rem' },
+              lineHeight: 1.2,
+              letterSpacing: '0.2px',
+              mb: 0.5,
+              wordBreak: 'break-word',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}
+          >
+            {product.name}
+          </Typography>
           {/* Star ratings below product name */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, mt: 0.5 }}>
             <Rating value={Number(avgRating) || 0} precision={0.1} readOnly size="medium" />
