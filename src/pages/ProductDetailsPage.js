@@ -3,6 +3,7 @@ import './ProductDetailsPage.css';
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, Card, CardMedia, CardContent, Button, IconButton, Divider, Rating, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Badge } from "@mui/material";
 import WishlistWidget from '../components/WishlistWidget';
+import ShareButton from '../components/ShareButton';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import RemoveIcon from "@mui/icons-material/Remove";
@@ -335,9 +336,11 @@ const ProductDetailsPage = () => {
               </Box>
             )}
           </Box>
-          {/* Wishlist widget overlaid at top-right of image area */}
-          <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}>
-            <WishlistWidget product={product} selectedOption={selectedOption} onAdd={() => { /* noop */ }} />
+          {/* Wishlist + Share overlaid at top-right of image area */}
+          <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* ShareButton inline next to wishlist (override default absolute) */}
+            <ShareButton product={product} sx={{ position: 'static', top: 'auto', left: 'auto' }} />
+            <WishlistWidget inline product={product} selectedOption={selectedOption} onAdd={() => { /* noop */ }} />
           </Box>
         </Box>
 
@@ -373,31 +376,50 @@ const ProductDetailsPage = () => {
           {/* Unit selector - horizontally scrollable and spaced */}
 {options.length > 1 && (
   <Box className="horizontal-scroll" sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1, mb: 1, width: '100%' }}>
-    {options.map((opt, idx) => (
-      <Button
-        key={idx}
-        variant={selectedOptionIdx === idx ? 'contained' : 'outlined'}
-        color={selectedOptionIdx === idx ? 'primary' : 'inherit'}
-        size="medium"
-        sx={{
-          fontWeight: 700,
-          borderRadius: 3,
-          minWidth: 100,
-          px: 3,
-          fontSize: { xs: '1rem', sm: '1.1rem' },
-          boxShadow: selectedOptionIdx === idx ? 3 : 0,
-          border: selectedOptionIdx === idx ? '2px solid #388e3c' : '1px solid #eee',
-          background: selectedOptionIdx === idx ? 'linear-gradient(90deg,#e0ffe6 0%,#fff 100%)' : '#fff',
-          color: selectedOptionIdx === idx ? '#388e3c' : '#222',
-          transition: '0.2s',
-          whiteSpace: 'nowrap',
-          '&:hover': { boxShadow: 4, borderColor: '#43a047', background: '#f5fff5' }
-        }}
-        onClick={() => setSelectedOptionIdx(idx)}
-      >
-        {opt.unitSize} {opt.unit.toUpperCase()}
-      </Button>
-    ))}
+    {options.map((opt, idx) => {
+      const optMrp = opt?.mrp ?? product?.mrp ?? 0;
+      const optSell = (opt?.sellingPrice ?? product?.sellingPrice ?? optMrp) || 0;
+      const hasDiscount = Number(optMrp) > Number(optSell);
+      return (
+        <Button
+          key={idx}
+          variant={selectedOptionIdx === idx ? 'contained' : 'outlined'}
+          color={selectedOptionIdx === idx ? 'primary' : 'inherit'}
+          size="medium"
+          sx={{
+            fontWeight: 700,
+            borderRadius: 3,
+            minWidth: 136,
+            px: 2,
+            py: 1,
+            textAlign: 'left',
+            boxShadow: selectedOptionIdx === idx ? 3 : 0,
+            border: selectedOptionIdx === idx ? '2px solid #388e3c' : '1px solid #eee',
+            background: selectedOptionIdx === idx ? 'linear-gradient(90deg,#e0ffe6 0%,#fff 100%)' : '#fff',
+            color: selectedOptionIdx === idx ? '#388e3c' : '#222',
+            transition: '0.2s',
+            '&:hover': { boxShadow: 4, borderColor: '#43a047', background: '#f5fff5' }
+          }}
+          onClick={() => setSelectedOptionIdx(idx)}
+        >
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+            <Typography variant="body1" sx={{ fontWeight: 800 }}>
+              {opt.unitSize} {String(opt.unit || '').toUpperCase()}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body1" sx={{ fontWeight: 900 }}>
+                ₹{Number(optSell).toLocaleString('en-IN')}
+              </Typography>
+              {hasDiscount && (
+                <Typography variant="body2" sx={{ color: '#888', textDecoration: 'line-through', fontWeight: 600 }}>
+                  ₹{Number(optMrp).toLocaleString('en-IN')}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        </Button>
+      );
+    })}
   </Box>
 )}
 

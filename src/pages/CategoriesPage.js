@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Grid, Card, CardMedia, Skeleton, Dialog, DialogTitle, DialogContent, Drawer, List, ListItemButton, ListItemText, ListItemAvatar, Avatar, IconButton } from "@mui/material";
+import { Box, Typography, Grid, Card, CardMedia, Skeleton, Dialog, DialogTitle, DialogContent, List, ListItemButton, ListItemText, ListItemAvatar, Avatar, IconButton, SwipeableDrawer } from "@mui/material";
 import { Button } from "@mui/material";
 import CategoryIcon from "@mui/icons-material/Category";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import CloseIcon from "@mui/icons-material/Close";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { getFirestore, collection, getDocs, query, orderBy, where } from "firebase/firestore";
 import ProductCard from "../components/ProductCard";
 import SortFilterBar from "../components/SortFilterBar";
@@ -23,6 +23,28 @@ const CategoriesPage = () => {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
+  const { categoryName } = useParams();
+
+  // Helpers: compute effective price/mrp from options if present
+  const getEffectivePrices = (p) => {
+    if (Array.isArray(p.options) && p.options.length > 0) {
+      // choose middle option similar to ProductCard default display
+      const idx = Math.floor(p.options.length / 2);
+      const opt = p.options[idx] || p.options[0];
+      const sellingPrice = opt?.sellingPrice ?? p.sellingPrice ?? p.price ?? 0;
+      const mrp = opt?.mrp ?? p.mrp ?? 0;
+      return { sellingPrice, mrp };
+    }
+    const sellingPrice = p.sellingPrice ?? p.price ?? 0;
+    const mrp = p.mrp ?? 0;
+    return { sellingPrice, mrp };
+  };
+
+  const getDiscountPct = (p) => {
+    const { sellingPrice, mrp } = getEffectivePrices(p);
+    if (!mrp || mrp <= sellingPrice) return 0;
+    return Math.round(((mrp - sellingPrice) / mrp) * 100);
+  };
 
   // Auto-open category drawer on first load
   useEffect(() => {
@@ -44,9 +66,15 @@ const CategoriesPage = () => {
         
           setCategories(categoriesData);
           setLoadingCategories(false);
-          // Automatically select the first category if available
+          // Auto-select from route param if provided, else first
           if (categoriesData.length > 0) {
-            setSelectedCategory(categoriesData[0]);
+            if (categoryName) {
+              const decoded = decodeURIComponent(categoryName);
+              const match = categoriesData.find(c => c.id === decoded || c.name === decoded);
+              setSelectedCategory(match || categoriesData[0]);
+            } else {
+              setSelectedCategory(categoriesData[0]);
+            }
           }
       } catch (error) {
         console.error("Error fetching categories:", error);
@@ -55,7 +83,7 @@ const CategoriesPage = () => {
     };
 
     fetchCategories();
-  }, []);
+  }, [categoryName]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -201,16 +229,18 @@ const CategoriesPage = () => {
   // Filter and sort products for selected category
   const getFilteredProducts = () => {
     let filtered = [...products];
-    // Only apply price filter if user changed from default
+    // Only apply price filter if user changed from default (using effective price)
     if (filters.price[0] > 0 || filters.price[1] < 10000) {
-      filtered = filtered.filter(p => (p.sellingPrice || p.price) >= filters.price[0] && (p.sellingPrice || p.price) <= filters.price[1]);
+      filtered = filtered.filter(p => {
+        const { sellingPrice } = getEffectivePrices(p);
+        return sellingPrice >= filters.price[0] && sellingPrice <= filters.price[1];
+      });
     }
     // Only apply discount filter if user changed from default
     if (filters.discount[0] > 0 || filters.discount[1] < 100) {
       filtered = filtered.filter(p => {
-        const mrp = p.mrp || 0, sp = p.sellingPrice || p.price || 0;
-        const discount = mrp > 0 ? Math.round(((mrp - sp) / mrp) * 100) : 0;
-        return discount >= filters.discount[0] && discount <= filters.discount[1];
+        const dis = getDiscountPct(p);
+        return dis >= filters.discount[0] && dis <= filters.discount[1];
       });
     }
     // Only apply rating filter if user changed from default
@@ -226,23 +256,22 @@ const CategoriesPage = () => {
 
     // Sort
     switch (sort) {
-      case "priceLowHigh": filtered.sort((a, b) => (a.sellingPrice || a.price) - (b.sellingPrice || b.price)); break;
-      case "priceHighLow": filtered.sort((a, b) => (b.sellingPrice || b.price) - (a.sellingPrice || a.price)); break;
+      case "priceLowHigh": filtered.sort((a, b) => getEffectivePrices(a).sellingPrice - getEffectivePrices(b).sellingPrice); break;
+      case "priceHighLow": filtered.sort((a, b) => getEffectivePrices(b).sellingPrice - getEffectivePrices(a).sellingPrice); break;
       case "newest": filtered.sort((a, b) => (b.createdAt?.toDate?.() || new Date(b.createdAt)) - (a.createdAt?.toDate?.() || new Date(a.createdAt))); break;
       case "oldest": filtered.sort((a, b) => (a.createdAt?.toDate?.() || new Date(a.createdAt)) - (b.createdAt?.toDate?.() || new Date(b.createdAt))); break;
       case "nameAZ": filtered.sort((a, b) => (a.name || "").localeCompare(b.name || "")); break;
       case "nameZA": filtered.sort((a, b) => (b.name || "").localeCompare(a.name || "")); break;
-      case "discount": filtered.sort((a, b) => {
-        const dA = a.mrp && a.sellingPrice ? ((a.mrp - a.sellingPrice) / a.mrp) : 0;
-        const dB = b.mrp && b.sellingPrice ? ((b.mrp - b.sellingPrice) / b.mrp) : 0;
-        return dB - dA;
-      }); break;
+      case "discount": filtered.sort((a, b) => getDiscountPct(b) - getDiscountPct(a)); break;
       case "rating": filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
       default: break;
     }
     return filtered;
   };
   const filteredProducts = getFilteredProducts();
+  // Derive units and brands from current products
+  const derivedUnits = Array.from(new Set(products.flatMap(p => (Array.isArray(p.options) ? p.options.map(o => o.unit) : [p.unit]).filter(Boolean))));
+  const derivedBrands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)));
   const isScrollable = loadingProducts || filteredProducts.length > 0;
   return (
     <div className="categories-root">
@@ -257,34 +286,37 @@ const CategoriesPage = () => {
           top: '50%',
           transform: 'translateY(-50%)',
           zIndex: 1300,
-          width: 26,
-          height: 116,
+          width: 22,
+          height: 90,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           background: 'linear-gradient(180deg, #43a047 0%, #2e7d32 100%)',
           color: '#fff',
-          borderTopLeftRadius: 12,
-          borderBottomLeftRadius: 12,
+          borderTopLeftRadius: 10,
+          borderBottomLeftRadius: 10,
           borderTopRightRadius: 0,
           borderBottomRightRadius: 0,
           boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
           borderLeft: '1px solid rgba(255,255,255,0.2)',
           cursor: 'pointer',
           userSelect: 'none',
-          '&:hover': { filter: 'brightness(1.05)' }
+          '&:hover': { filter: 'brightness(1.02)' }
         }}
       >
         <ChevronLeftIcon sx={{ color: '#fff' }} />
       </Box>
 
       {/* Right side drawer for category selection */}
-      <Drawer
+      <SwipeableDrawer
         anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        variant="persistent"
-        ModalProps={{ keepMounted: true, hideBackdrop: true, disableEscapeKeyDown: true, disableScrollLock: true }}
+        onOpen={() => setDrawerOpen(true)}
+        disableDiscovery={false}
+        disableBackdropTransition
+        swipeAreaWidth={28}
+        ModalProps={{ keepMounted: true, BackdropProps: { invisible: true } }}
         PaperProps={{ sx: { width: { xs: '50vw', sm: '50vw' }, maxWidth: 520, top: { xs: 56, sm: 64 }, bottom: { xs: 120, sm: 120 }, overflow: 'auto' } }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1 }}>
@@ -318,7 +350,7 @@ const CategoriesPage = () => {
             ))
           )}
         </List>
-      </Drawer>
+      </SwipeableDrawer>
       {/* Removed top categories bar to match Home layout */}
 
       {/* Main Content Area */}
@@ -339,7 +371,7 @@ const CategoriesPage = () => {
           <Grid container spacing={2} sx={{ justifyContent: 'center', alignItems: 'flex-start' }}>
             {loadingProducts ? (
               Array(8).fill().map((_, index) => (
-                <Grid item xs={6} sm={6} md={6} key={`product-skeleton-${index}`}>
+                <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={`product-skeleton-${index}`} sx={{ display: 'flex', flexBasis: '45%', maxWidth: '45%', flexGrow: 0 }}>
                   <Box sx={{ width: '100%', bgcolor: '#fff', borderRadius: 2, boxShadow: 1, p: 1 }}>
                     <Skeleton variant="rectangular" width="100%" height={120} sx={{ borderRadius: 2 }} />
                     <Skeleton width="80%" height={16} sx={{ mt: 1 }} />
@@ -357,7 +389,7 @@ const CategoriesPage = () => {
               </Grid>
             ) : (
               filteredProducts.map(product => (
-                <Grid item xs={6} sm={6} md={6} key={product.id}>
+                <Grid item xs={12} sm={6} md={6} lg={6} xl={6} key={product.id} sx={{ display: 'flex', flexBasis: '45%', maxWidth: '45%', flexGrow: 0 }}>
                   <Box sx={{ width: '100%' }}>
                     <ProductCard product={product} />
                   </Box>
@@ -368,24 +400,26 @@ const CategoriesPage = () => {
         </div>
       </div>
 
-      {/* Fixed Sort/Filter Bar - Above Bottom Nav */}
-      <div className="sort-filter-fixed">
-        <SortFilterBar 
-          sort={sort}
-          setSort={setSort}
-          filters={filters}
-          setFilters={setFilters}
-          units={[]}
-          brands={[]}
-          minPrice={0}
-          maxPrice={10000}
-          minDiscount={0}
-          maxDiscount={100}
-          minRating={0}
-          maxRating={5}
-          onApply={() => { /* Re-fetch using Firestore with current criteria */ setLoadingProducts(true); setTimeout(() => setLoadingProducts(false), 0); /* trigger useEffect via state changes already wired */ }}
-        />
-      </div>
+      {/* Fixed Sort/Filter controller (drawer lives inside component) */}
+      <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 60, zIndex: 1000, pointerEvents: 'none' }}>
+        <Box sx={{ pointerEvents: 'auto' }}>
+          <SortFilterBar 
+            sort={sort}
+            setSort={setSort}
+            filters={filters}
+            setFilters={setFilters}
+            units={derivedUnits}
+            brands={derivedBrands}
+            minPrice={0}
+            maxPrice={10000}
+            minDiscount={0}
+            maxDiscount={100}
+            minRating={0}
+            maxRating={5}
+            onApply={() => { /* trigger data refresh via state; already wired */ setLoadingProducts(true); setTimeout(() => setLoadingProducts(false), 0); }}
+          />
+        </Box>
+      </Box>
 
       {/* Category Details Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>

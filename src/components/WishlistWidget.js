@@ -2,13 +2,11 @@ import React, { useState, useEffect, useContext } from 'react';
 import { IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography, Button, TextField } from '@mui/material';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import FavoriteIcon from '@mui/icons-material/Favorite';
-import AddIcon from '@mui/icons-material/Add';
-import RemoveIcon from '@mui/icons-material/Remove';
 import { AuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 
-const WishlistWidget = ({ product, selectedOption, onAdd }) => {
+const WishlistWidget = ({ product, selectedOption, onAdd, inline = false, sx: containerSx }) => {
   const { user } = useContext(AuthContext) || {};
   const [wishlists, setWishlists] = useState([]);
   const [open, setOpen] = useState(false);
@@ -176,70 +174,73 @@ const WishlistWidget = ({ product, selectedOption, onAdd }) => {
   const generalContains = presentSet.has('general');
 
   return (
-    <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
-      <IconButton onClick={handleOpen} sx={{ p: 0.5, background: '#fff', boxShadow: 1, borderRadius: '50%' }}>
-        {isPresent ? <FavoriteIcon fontSize="small" sx={{ color: '#d32f2f' }} /> : <FavoriteBorderIcon fontSize="small" sx={{ color: '#d32f2f' }} />}
-      </IconButton>
-      <Dialog open={open} onClose={() => { setOpen(false); setSelectingCreate(false); setNewWishlistName(''); setQuantity('1'); }} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.2rem', pb: 1 }}>Select Wishlist</DialogTitle>
-        <DialogContent sx={{ px: 2, py: 1 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {wishlists.length === 0 ? (
-              <>
-                <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>No wishlists found.</Typography>
-                {!generalContains && (
-                  <Button variant="contained" color="primary" sx={{ mb: 2, borderRadius: 2 }} fullWidth onClick={() => handleAddToGeneral()}>Add to General Wishlist</Button>
-                )}
-                {!selectingCreate && (
-                  <Button variant="outlined" color="success" sx={{ borderRadius: 2 }} fullWidth onClick={() => setSelectingCreate(true)}>Create New Wishlist</Button>
-                )}
-                {selectingCreate && (
-                  <Box sx={{ mt: 2 }}>
-                    <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
-                    <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={() => handleCreateAndAdd()}>Create & Add</Button>
-                  </Box>
-                )}
-              </>
-            ) : (
-              <>
-                <Typography variant="body2" sx={{ mb: 1, textAlign: 'center', fontWeight: 500 }}>Choose a wishlist to add this product:</Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {wishlists.map(wl => (
-                    <Box key={wl.id} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{wl.name || 'Unnamed Wishlist'}</Typography>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        {presentSet.has(wl.id) ? (
-                          // already present: show only Remove
-                          <Button variant="outlined" color="error" size="small" sx={{ borderRadius: 2 }} onClick={() => handleRemove(wl.id)}>Remove</Button>
-                        ) : (
-                          // show Add button for wishlists that don't yet contain the product
-                          <Button variant="contained" color="success" size="small" sx={{ borderRadius: 2 }} onClick={() => handleSelect(wl.id)}>Add</Button>
-                        )}
-                      </Box>
+    <>
+      {/* Heart (wishlist) container */}
+      <Box sx={{ position: inline ? 'static' : 'absolute', top: inline ? 'auto' : 8, right: inline ? 'auto' : 8, zIndex: 2, ...(containerSx || {}) }}>
+        <IconButton onClick={handleOpen} sx={{ p: 0.5, background: '#fff', boxShadow: 1, borderRadius: '50%' }} aria-label="Add to wishlist">
+          {isPresent ? <FavoriteIcon fontSize="small" sx={{ color: '#d32f2f' }} /> : <FavoriteBorderIcon fontSize="small" sx={{ color: '#d32f2f' }} />}
+        </IconButton>
+        <Dialog open={open} onClose={() => { setOpen(false); setSelectingCreate(false); setNewWishlistName(''); setQuantity('1'); }} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.2rem', pb: 1 }}>Select Wishlist</DialogTitle>
+          <DialogContent sx={{ px: 2, py: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {wishlists.length === 0 ? (
+                <>
+                  <Typography variant="body2" sx={{ mb: 2, textAlign: 'center' }}>No wishlists found.</Typography>
+                  {!generalContains && (
+                    <Button variant="contained" color="primary" sx={{ mb: 2, borderRadius: 2 }} fullWidth onClick={() => handleAddToGeneral()}>Add to General Wishlist</Button>
+                  )}
+                  {!selectingCreate && (
+                    <Button variant="outlined" color="success" sx={{ borderRadius: 2 }} fullWidth onClick={() => setSelectingCreate(true)}>Create New Wishlist</Button>
+                  )}
+                  {selectingCreate && (
+                    <Box sx={{ mt: 2 }}>
+                      <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
+                      <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={() => handleCreateAndAdd()}>Create & Add</Button>
                     </Box>
-                  ))}
-                </Box>
-                {!selectingCreate && (
-                  <Button variant="outlined" color="success" sx={{ mt: 2, borderRadius: 2 }} fullWidth onClick={() => setSelectingCreate(true)}>Create New Wishlist</Button>
-                )}
-                {!generalExists && (
-                  <Button variant="contained" color="primary" sx={{ mt: 1, borderRadius: 2 }} fullWidth onClick={() => handleAddToGeneral()}>Add to General Wishlist</Button>
-                )}
-                {selectingCreate && (
-                  <Box sx={{ mt: 2 }}>
-                    <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
-                    <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={() => handleCreateAndAdd()}>Create & Add</Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Typography variant="body2" sx={{ mb: 1, textAlign: 'center', fontWeight: 500 }}>Choose a wishlist to add this product:</Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {wishlists.map(wl => (
+                      <Box key={wl.id} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{wl.name || 'Unnamed Wishlist'}</Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          {presentSet.has(wl.id) ? (
+                            // already present: show only Remove
+                            <Button variant="outlined" color="error" size="small" sx={{ borderRadius: 2 }} onClick={() => handleRemove(wl.id)}>Remove</Button>
+                          ) : (
+                            // show Add button for wishlists that don't yet contain the product
+                            <Button variant="contained" color="success" size="small" sx={{ borderRadius: 2 }} onClick={() => handleSelect(wl.id)}>Add</Button>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
                   </Box>
-                )}
-              </>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
-          <Button onClick={() => { setOpen(false); setSelectingCreate(false); setNewWishlistName(''); }} color="inherit" sx={{ borderRadius: 2 }}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+                  {!selectingCreate && (
+                    <Button variant="outlined" color="success" sx={{ mt: 2, borderRadius: 2 }} fullWidth onClick={() => setSelectingCreate(true)}>Create New Wishlist</Button>
+                  )}
+                  {!generalExists && (
+                    <Button variant="contained" color="primary" sx={{ mt: 1, borderRadius: 2 }} fullWidth onClick={() => handleAddToGeneral()}>Add to General Wishlist</Button>
+                  )}
+                  {selectingCreate && (
+                    <Box sx={{ mt: 2 }}>
+                      <TextField label="New Wishlist Name" value={newWishlistName} onChange={e => setNewWishlistName(e.target.value)} fullWidth autoFocus sx={{ mb: 2 }} />
+                      <Button variant="contained" color="success" fullWidth sx={{ borderRadius: 2 }} onClick={() => handleCreateAndAdd()}>Create & Add</Button>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
+            <Button onClick={() => { setOpen(false); setSelectingCreate(false); setNewWishlistName(''); }} color="inherit" sx={{ borderRadius: 2 }}>Cancel</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </>
   );
 };
 

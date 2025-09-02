@@ -262,8 +262,12 @@ const HomePage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, loading, search, sort, filters]);
 
+  // Derive units and brands from current products
+  const derivedUnits = Array.from(new Set(products.flatMap(p => (Array.isArray(p.options) ? p.options.map(o => o.unit) : [p.unit]).filter(Boolean))));
+  const derivedBrands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)));
+
   return (
-    <Box className="home-root" sx={{ position: 'relative', pb: 10 }}>
+    <Box className="home-root" sx={{ position: 'relative', pb: 12 }}>
       <SEO
         title="Online Grocery & Essentials"
         description="Shop groceries and daily essentials online from Sri Amman Smart Store. Discover fresh products, best prices, and fast delivery in Coimbatore."
@@ -335,6 +339,28 @@ const HomePage = () => {
           Added to cart!
         </Alert>
       </Snackbar>
+
+      {/* Fixed Sort/Filter controller (drawer lives inside component) */}
+      <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 60, zIndex: 1000, pointerEvents: 'none' }}>
+        {/* Keep mounted invisibly to listen to bump events */}
+        <Box sx={{ pointerEvents: 'auto' }}>
+          <SortFilterBar
+            sort={sort}
+            setSort={setSort}
+            filters={filters}
+            setFilters={setFilters}
+            units={derivedUnits}
+            brands={derivedBrands}
+            minPrice={0}
+            maxPrice={10000}
+            minDiscount={0}
+            maxDiscount={100}
+            minRating={0}
+            maxRating={5}
+            onApply={() => { /* No extra action needed; list updates from state */ }}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 };

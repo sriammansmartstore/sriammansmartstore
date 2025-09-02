@@ -15,6 +15,7 @@ import {
   TextField,
 } from "@mui/material";
 import WishlistWidget from './WishlistWidget';
+import ShareButton from './ShareButton';
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
@@ -199,60 +200,24 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   }, [user, product.id, selectedOptionIdx]);
 
   return (
-    <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'hidden', maxWidth: 180, margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
-      {/* Discount Ribbon */}
-      {discount > 0 && (
-        <Box
-          className="product-card-badge-container"
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            zIndex: 3,
-            width: 56,
-            height: 56,
-            pointerEvents: 'none',
-            overflow: 'hidden',
-          }}
-        >
-          <Box
-            className="product-card-badge"
-            sx={{
-              position: 'absolute',
-              top: 8,
-              left: -18,
-              width: 90,
-              transform: 'rotate(-45deg)',
-              background: 'linear-gradient(90deg, #d32f2f 60%, #ff5252 100%)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '0.8rem',
-              textAlign: 'center',
-              py: 0.5,
-              boxShadow: 2,
-              letterSpacing: 0.5,
-              borderRadius: 1,
-              userSelect: 'none',
-              overflow: 'hidden',
-            }}
-          >
-            {discount}% OFF
-          </Box>
-        </Box>
-      )}
+    <Card className="product-card" sx={{ height: '100%', position: 'relative', overflow: 'hidden', m: 0, display: 'flex', flexDirection: 'column', maxWidth: '100%', p: 0.5 }}>
   {/* Wishlist widget */}
   <WishlistWidget product={product} selectedOption={option} onAdd={onAddToWishlist} />
+  {/* Share button (top-left) */}
+  <ShareButton product={product} sx={{ zIndex: 11 }} />
       <Link to={`/product/${product.category}/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' }}>
-        <Box sx={{ width: '100%', minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center', pt: 0, mt: 0, mb: 0 }}>
-          <CardMedia
-            component="img"
-            image={product.imageUrls?.[0] || "https://via.placeholder.com/180"}
-            alt={product.name}
-            sx={{ objectFit: "contain", width: '100%', height: 120, maxHeight: 140, background: '#f8f8f8', maxWidth: 160 }}
-          />
+        <Box className="product-card-image-container" sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0, m: 0 }}>
+          <Box className="square-media" sx={{ width: '100%' }}>
+            <CardMedia
+              component="img"
+              image={product.imageUrls?.[0] || "https://via.placeholder.com/180"}
+              alt={product.name}
+              sx={{ objectFit: 'cover', width: '100%', height: '100%' }}
+            />
+          </Box>
         </Box>
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-          <CardContent sx={{ p: 1, pb: 0, flex: 1, paddingBottom: '0 !important' }}>
+          <CardContent sx={{ p: 0.25, pt: 0, pb: 0, flex: 1, paddingBottom: '0 !important' }}>
             <Box 
               sx={{
                 overflow: 'hidden',
@@ -279,9 +244,10 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                 variant="subtitle1"
                 fontWeight={700}
                 sx={{ 
-                  fontSize: '1rem',
-                  mb: 0.5,
-                  lineHeight: 1.1,
+                  fontSize: '0.98rem',
+                  mt: 0.5,
+                  mb: 0,
+                  lineHeight: 1.05,
                   display: 'inline-block',
                   width: '100%',
                   whiteSpace: 'nowrap',
@@ -305,18 +271,32 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                 {product.name}
               </Typography>
             </Box>
-            {/* Product Pricing Section: Show selling price, MRP (striked out), and discount if any */}
-            <Box className="product-card-pricing" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'nowrap' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap' }}>
-                <Typography className="selling-price" sx={{ fontWeight: 700, color: '#388e3c', fontSize: '1.1rem', mr: 1 }}>
+            {/* Product Pricing Section: Selling price + Save on first line; MRP (striked) + discount below */}
+            <Box className="product-card-pricing" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, mt: 0 }}>
+              {/* Line 1: Selling Price (prominent, black) + Save */}
+              <Box sx={{ display: 'flex', alignItems: 'baseline', flexWrap: 'nowrap', gap: 1 }}>
+                <Typography className="selling-price" sx={{ fontWeight: 900, color: '#000', fontSize: '1.22rem', lineHeight: 1 }}>
                   ₹{option.sellingPrice}
                 </Typography>
                 {option.mrp && option.mrp > option.sellingPrice && (
-                  <Typography className="mrp-price" sx={{ textDecoration: 'line-through', color: '#888', fontWeight: 500, fontSize: '1rem', mr: 1 }}>
-                    ₹{option.mrp}
+                  <Typography sx={{ color: '#2e7d32', fontWeight: 800, fontSize: '0.9rem', lineHeight: 1 }}>
+                    Save ₹{Math.max(0, (option.mrp || 0) - (option.sellingPrice || 0))}
                   </Typography>
                 )}
               </Box>
+              {/* Line 2: MRP (striked) + discount */}
+              {option.mrp && option.mrp > option.sellingPrice && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', justifyContent: 'center', mt: 0.4 }}>
+                  <Typography className="mrp-price" sx={{ textDecoration: 'line-through', color: '#888', fontWeight: 600, fontSize: '0.9rem', lineHeight: 1 }}>
+                    ₹{option.mrp}
+                  </Typography>
+                  {discount > 0 && (
+                    <Typography sx={{ color: '#d32f2f', fontWeight: 800, fontSize: '0.9rem', lineHeight: 1 }}>
+                      {discount}% off
+                    </Typography>
+                  )}
+                </Box>
+              )}
             </Box>
           </CardContent>
         </Box>
@@ -340,7 +320,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
       >
         {/* Show Add to Cart button only if not showing quantity selector for single option products */}
         {hasMultipleOptions ? (
-          <Box sx={{ width: '100%', px: 1, pb: 1 }}>
+          <Box sx={{ width: '100%', px: 0, pb: 0 }}>
             <Button
               variant="contained"
               color="success"
@@ -349,7 +329,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
               className="add-to-cart-btn"
               onClick={handleAddToCartClick}
               disabled={product.outOfStock}
-              sx={{ height: 36, minHeight: 36, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
+              sx={{ height: 40, minHeight: 40, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
             >
               {inCartAnyVariant ? 'Add Another' : 'Add Options'}
             </Button>
@@ -358,6 +338,9 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           (!showQuantity) && (
             <Button
               variant="contained"
+              color="success"
+              size="small"
+              fullWidth
               className="add-to-cart-btn"
               onClick={(e) => {
                 if (hasCurrentVariantInCart) {
@@ -369,7 +352,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
                 }
               }}
               disabled={product.outOfStock}
-              sx={{ height: 40, minHeight: 40, borderRadius: 2, px: 2 }}
+              sx={{ height: 40, minHeight: 40, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
             >
               {hasCurrentVariantInCart ? 'Go to Cart' : 'Add to Cart'}
             </Button>

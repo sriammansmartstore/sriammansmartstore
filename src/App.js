@@ -45,7 +45,6 @@ const MorePage = lazy(() => import("./pages/MorePage"));
 const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
 const ReportProblemPage = lazy(() => import("./pages/ReportProblemPage"));
 const UserDataPage = lazy(() => import("./pages/UserDataPage"));
-const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 
 const theme = createTheme({
@@ -206,7 +205,7 @@ function App() {
                         <Route path="/" element={<HomePage />} />
                         <Route path="/product/:category/:id" element={<ProductDetailsPage />} />
                         <Route path="/categories" element={<CategoriesPage />} />
-                        <Route path="/category/:categoryName" element={<CategoryProductsPage />} />
+                        <Route path="/category/:categoryName" element={<CategoriesPage />} />
                         <Route path="/cart" element={<CartPage />} />
                         <Route path="/wishlist" element={<WishlistPage />} />
                         <Route path="/wishlist/:wishlistId" element={<WishlistDetailPage />} />

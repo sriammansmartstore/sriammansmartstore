@@ -51,17 +51,17 @@
   box-shadow: 0 4px 12px rgba(56, 142, 60, 0.12);
   transition: transform 0.2s, box-shadow 0.2s;
   background: white;
-  width: calc(50% - 12px); /* Two cards per row with gap */
+  width: 100%; /* Take full width of grid column */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  margin: 6px;
+  margin: 0; /* Use Grid spacing for gutters to keep equal widths */
   position: relative;
   padding: 12px 8px;
   box-sizing: border-box;
   overflow: hidden;
-  flex: 1 1 calc(50% - 12px); /* Flex basis for equal width */
+  flex: 1 1 100%; /* Fill column width */
   min-width: 140px;
   max-width: 100%;
 }
@@ -91,23 +91,50 @@
 /* Uniform image container */
 .product-card-image-container {
   width: 100%;
-  aspect-ratio: 1/1; /* Makes the container square */
+  aspect-ratio: 1/1; /* Default square if supported */
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f9f9f9;
   margin: 0 auto 8px;
   overflow: hidden;
-  padding: 8px;
+  padding: 0; /* remove inner padding */
   border-radius: 8px;
+}
+
+/* Universal square media wrapper (fallback, robust across browsers) */
+.square-media {
+  position: relative;
+  width: 100%;
+  padding-top: 100%; /* 1:1 square via padding hack */
+  overflow: hidden;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.square-media > img, .square-media .MuiCardMedia-root {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important; /* crop to fill square */
+  border-radius: 8px !important;
 }
 
 .product-card img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: contain; /* default */
   display: block;
   border-radius: 8px !important;
+}
+
+/* When using universal square-media, enforce cover */
+.product-card .square-media img {
+  object-fit: cover !important;
 }
 
 /* Consistent text styling */
